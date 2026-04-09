@@ -1,0 +1,40 @@
+from functools import lru_cache
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """Application settings loaded from environment variables."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="MIROFISH_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    # FRED API
+    fred_api_key: str
+
+    # Upstash Redis
+    redis_url: str
+    redis_token: str
+
+    # IB Market Internals Relay
+    ib_relay_url: str = "http://localhost:5001"
+
+    # OpenAI
+    openai_api_key: str = ""
+    openai_model_parse: str = "gpt-4o-2024-08-06"  # For NLP parsing (structured output)
+    openai_model_synthesis: str = "gpt-4o-2024-08-06"  # For forecast synthesis (Phase 4)
+    openai_model_agents: str = "gpt-4o-mini-2024-07-18"  # For simulation agents (Phase 4)
+    openai_max_rpm: int = 500  # Rate limit (requests per minute)
+
+    # App settings
+    debug: bool = False
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    """Cached singleton settings instance. Fails fast if required env vars missing."""
+    return Settings()  # type: ignore[call-arg]
