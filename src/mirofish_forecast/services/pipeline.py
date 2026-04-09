@@ -61,10 +61,14 @@ class ForecastPipeline:
                 constants.STAGE_DATA_COLLECTION,
                 {
                     "context_summary": {
-                        "vix_spot": context.vix.spot,
+                        "es_price": context.cross_asset.es_price,
+                        "vix_spot": context.vix.spot or context.cross_asset.vix_price,
                         "vix_regime": (context.vix.regime.value if context.vix.regime else None),
                         "fear_greed": context.fear_greed.value,
-                        "es_price": context.cross_asset.es_price,
+                        "fear_greed_desc": context.fear_greed.description,
+                        "fed_funds": context.macro.fed_funds_rate,
+                        "ten_year": context.macro.ten_year_yield,
+                        "dxy": context.cross_asset.dxy_price,
                     },
                 },
             )

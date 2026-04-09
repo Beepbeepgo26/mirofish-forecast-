@@ -56,6 +56,29 @@ class MonteCarloRunner:
         Returns:
             List of SimulationResult objects
         """
+        try:
+            # Check if there's already a running event loop (e.g., inside gunicorn)
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop is not None:
+            # Already in an async context — run in a new thread with its own loop
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(self._run_in_new_loop, scenario, sim_count, progress_callback)
+                return future.result()
+        else:
+            return self._run_in_new_loop(scenario, sim_count, progress_callback)
+
+    def _run_in_new_loop(
+        self,
+        scenario: SimulationScenario,
+        sim_count: int,
+        progress_callback: Callable[[int, int], None] | None,
+    ) -> list[SimulationResult]:
+        """Run async simulations in a fresh event loop."""
         loop = asyncio.new_event_loop()
         try:
             return loop.run_until_complete(self._run_async(scenario, sim_count, progress_callback))
@@ -173,15 +196,30 @@ class MonteCarloRunner:
                         if d.price_target is not None:
                             valid_targets.append(d.price_target)
 
-                # Update price: weighted average of agent targets + noise
+                # Update price: weighted average of agent targets + noise + drift anchoring
                 if valid_targets:
                     avg_target = sum(valid_targets) / len(valid_targets)
-                    # Add small random noise scaled by VIX
-                    noise = rng.gauss(0, current_price * 0.0005)
-                    current_price = round(avg_target + noise, 2)
+
+                    # Clamp: max per-bar move as % of current price
+                    max_move = current_price * constants.SIM_MAX_BAR_MOVE_PCT
+                    clamped_target = max(
+                        current_price - max_move,
+                        min(current_price + max_move, avg_target),
+                    )
+
+                    # Drift anchor: blend toward starting price to prevent runaway
+                    start_price = price_path[0]
+                    anchored = (
+                        clamped_target * (1 - constants.SIM_DRIFT_ANCHOR_WEIGHT)
+                        + start_price * constants.SIM_DRIFT_ANCHOR_WEIGHT
+                    )
+
+                    # Add small random noise
+                    noise = rng.gauss(0, current_price * 0.0003)
+                    current_price = round(anchored + noise, 2)
                 else:
-                    # No valid targets — add random walk
-                    current_price = round(current_price + rng.gauss(0, current_price * 0.001), 2)
+                    # No valid targets — small random walk
+                    current_price = round(current_price + rng.gauss(0, current_price * 0.0003), 2)
 
                 price_path.append(current_price)
 

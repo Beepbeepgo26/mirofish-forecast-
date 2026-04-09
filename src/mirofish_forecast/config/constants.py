@@ -122,3 +122,11 @@ SYNTHESIS_MODEL = "gpt-4o-2024-08-06"
 SYNTHESIS_TEMPERATURE = 0.4
 SYNTHESIS_MAX_TOKENS = 1500
 SYNTHESIS_TIMEOUT = 30
+
+# Price target clamping (per bar)
+# Max move per bar as a fraction of current price
+# At VIX 20, ES moves ~2-3 pts per 6-min bar (~0.05%)
+# At VIX 30, ~4-5 pts per bar (~0.08%)
+# We allow up to 0.15% per bar to give agents room while preventing runaway drift
+SIM_MAX_BAR_MOVE_PCT = 0.0015  # 0.15% max move per bar (~10 pts on ES at 6800)
+SIM_DRIFT_ANCHOR_WEIGHT = 0.3  # 30% weight pulling price back toward starting price

@@ -118,3 +118,31 @@ class TestMonteCarloRunner:
 
         assert len(progress_calls) == 5
         assert progress_calls[-1] == (5, 5)
+
+    @patch("mirofish_forecast.services.simulation_runner.AsyncOpenAI")
+    def test_price_stays_near_start(self, mock_async_openai, mock_settings):
+        """Final prices should stay within a realistic range of the starting price."""
+        # Agent always returns a target 50 points above current — should get clamped
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = json.dumps(
+            {
+                "direction": "long",
+                "confidence": 0.9,
+                "price_target": 5470.0,  # 50 pts above start of 5420
+                "reasoning": "Very bullish.",
+            }
+        )
+        mock_client = mock_async_openai.return_value
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+        runner = MonteCarloRunner(mock_settings)
+        results = runner.run(_make_scenario(), sim_count=3)
+
+        for r in results:
+            if r.success:
+                # Price should not drift more than ~2% from starting price (5420)
+                drift_pct = abs(r.final_price - 5420.0) / 5420.0
+                assert drift_pct < 0.02, (
+                    f"Price drifted {drift_pct:.1%} to {r.final_price} — clamp is not working"
+                )
