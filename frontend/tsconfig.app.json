@@ -5,6 +5,7 @@
     "moduleResolution": "bundler",
     "jsx": "preserve",
     "strict": true,
+    "forceConsistentCasingInFileNames": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "paths": {

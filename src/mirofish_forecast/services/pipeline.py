@@ -7,6 +7,7 @@ from datetime import datetime
 from queue import Queue
 from typing import Any
 
+from mirofish_forecast.calibration.tracking import ForecastTracker
 from mirofish_forecast.config import constants
 from mirofish_forecast.config.settings import Settings
 from mirofish_forecast.services.data_aggregator import DataAggregator
@@ -32,6 +33,7 @@ class ForecastPipeline:
         self._scenario_builder = ScenarioBuilder(settings)
         self._simulation_runner = MonteCarloRunner(settings)
         self._synthesizer = ForecastSynthesizer(settings)
+        self._tracker = ForecastTracker(settings)
 
     def run(
         self,
@@ -147,6 +149,20 @@ class ForecastPipeline:
                     "forecast": json.loads(forecast.model_dump_json()),
                 },
             )
+
+            # Track forecast for calibration (fire-and-forget, don't block pipeline)
+            try:
+                vix_value = context.vix.spot or context.cross_asset.vix_price
+                fg_value = context.fear_greed.value
+                self._tracker.store_forecast(
+                    forecast=forecast,
+                    vix_at_forecast=vix_value,
+                    fear_greed_at_forecast=fg_value,
+                    agent_disagreement=float(forecast.distribution.std_dev),
+                    market_regime=scenario.market_regime.value,
+                )
+            except Exception:
+                logger.warning("Failed to store forecast tracking", exc_info=True)
 
         except Exception as e:
             logger.error(f"Pipeline error: {e}", exc_info=True)

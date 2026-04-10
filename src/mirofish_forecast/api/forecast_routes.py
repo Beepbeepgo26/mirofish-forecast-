@@ -9,6 +9,7 @@ from threading import Thread
 
 from flask import Blueprint, Response, current_app, jsonify, request
 
+from mirofish_forecast.calibration.tracking import ForecastTracker
 from mirofish_forecast.config import constants
 from mirofish_forecast.services.pipeline import ForecastPipeline
 
@@ -179,3 +180,50 @@ def list_sessions():
         for fid, s in _active_sessions.items()
     }
     return jsonify({"active_sessions": sessions, "count": len(sessions)})
+
+
+@forecast_bp.route("/history", methods=["GET"])
+def get_forecast_history():
+    """GET /api/forecast/history — List all tracked forecasts with outcomes."""
+    settings = current_app.config["SETTINGS"]
+    tracker = ForecastTracker(settings)
+
+    # Check pending outcomes first
+    tracker.check_all_pending()
+
+    # Return all tracked forecasts
+    records = tracker.get_all_tracked()
+    return jsonify(
+        {
+            "forecasts": [json.loads(r.model_dump_json()) for r in records],
+            "count": len(records),
+            "scored": sum(1 for r in records if r.outcome_checked),
+        }
+    )
+
+
+@forecast_bp.route("/calibration", methods=["GET"])
+def get_calibration_status():
+    """GET /api/forecast/calibration — Get calibration metrics and status."""
+    from mirofish_forecast.calibration.reliability import (
+        compute_calibration_summary,
+        compute_reliability_diagram_data,
+    )
+
+    settings = current_app.config["SETTINGS"]
+    tracker = ForecastTracker(settings)
+
+    # Check pending outcomes
+    tracker.check_all_pending()
+
+    all_tracked = tracker.get_all_tracked()
+    summary = compute_calibration_summary(all_tracked)
+    diagram = compute_reliability_diagram_data(all_tracked)
+
+    return jsonify(
+        {
+            "summary": summary,
+            "reliability_diagram": diagram,
+        }
+    )
+

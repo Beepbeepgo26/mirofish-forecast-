@@ -130,3 +130,30 @@ SYNTHESIS_TIMEOUT = 30
 # We allow up to 0.15% per bar to give agents room while preventing runaway drift
 SIM_MAX_BAR_MOVE_PCT = 0.0015  # 0.15% max move per bar (~10 pts on ES at 6800)
 SIM_DRIFT_ANCHOR_WEIGHT = 0.3  # 30% weight pulling price back toward starting price
+
+# --- Phase 5: Calibration ---
+
+# Forecast tracking
+TRACKING_CHECK_DELAY_MINUTES = 5  # Wait N minutes after horizon before checking actuals
+TRACKING_MAX_AGE_DAYS = 90  # Keep tracking records for 90 days
+TRACKING_STORAGE_PREFIX = "track"  # Redis key prefix (CacheClient adds "mf:" automatically)
+
+# Calibration thresholds
+CALIBRATION_MIN_SAMPLES = 200  # Minimum forecasts before CQR activates
+CALIBRATION_RETRAIN_INTERVAL = 50  # Retrain CQR model every N new forecasts
+CALIBRATION_WINDOW_SIZE = 500  # Use last N forecasts for training
+
+# CQR settings
+CQR_QUANTILES = [0.05, 0.25, 0.50, 0.75, 0.95]  # Quantile levels to predict
+CQR_ALPHA = 0.10  # Target miscoverage rate (90% coverage)
+CQR_CALIBRATION_SPLIT = 0.2  # Hold out 20% for conformal calibration
+
+# ACI settings
+ACI_GAMMA = 0.02  # Learning rate for alpha adjustment
+ACI_INITIAL_ALPHA = 0.10  # Starting miscoverage rate
+ACI_MIN_ALPHA = 0.02  # Don't tighten beyond 98% coverage
+ACI_MAX_ALPHA = 0.30  # Don't widen beyond 70% coverage
+
+# Reliability diagram
+RELIABILITY_NUM_BINS = 10  # Number of bins for reliability diagram
+

@@ -49,6 +49,18 @@ class ProbabilityDistribution(MiroFishBaseModel):
     scenario_probs: dict[str, float] = {}  # {"most_probable": 0.55, ...}
 
 
+class CalibrationMetrics(MiroFishBaseModel):
+    """Calibration quality metrics applied to this forecast."""
+
+    is_calibrated: bool = False
+    calibration_sample_size: int = 0
+    expected_coverage: float = 0.90
+    observed_coverage: float | None = None
+    interval_width_adjustment: float = 0.0
+    aci_alpha_current: float = 0.10
+    ece: float | None = None
+
+
 class ForecastResult(MiroFishBaseModel):
     """Complete forecast output — the final deliverable."""
 
@@ -76,3 +88,48 @@ class ForecastResult(MiroFishBaseModel):
     created_at: datetime
     pipeline_duration_seconds: float
     build_method: str = "monte_carlo"  # "monte_carlo" or "single_shot"
+
+    # Calibration (Phase 5)
+    calibration: CalibrationMetrics = CalibrationMetrics()
+
+
+class ForecastTracking(MiroFishBaseModel):
+    """Stored record linking a forecast to its actual outcome."""
+
+    forecast_id: str
+    instrument: str
+    forecast_horizon_minutes: int
+    created_at: datetime
+
+    # Predictions at forecast time
+    current_price: float
+    predicted_median: float
+    predicted_p5: float
+    predicted_p25: float
+    predicted_p75: float
+    predicted_p95: float
+    predicted_prob_up: float
+    predicted_prob_down: float
+    predicted_prob_flat: float
+
+    # Calibration features (for CQR training)
+    vix_at_forecast: float | None = None
+    fear_greed_at_forecast: float | None = None
+    agent_disagreement: float = 0.0
+    sim_success_rate: float = 1.0
+    sim_preset: str = "standard"
+    market_regime: str | None = None
+
+    # Actuals (filled in after horizon elapses)
+    actual_price: float | None = None
+    actual_direction: str | None = None
+    actual_return_pct: float | None = None
+    outcome_checked: bool = False
+    outcome_checked_at: datetime | None = None
+
+    # Scoring (computed after actuals are known)
+    p50_hit: bool | None = None
+    p90_hit: bool | None = None
+    direction_correct: bool | None = None
+    absolute_error: float | None = None
+

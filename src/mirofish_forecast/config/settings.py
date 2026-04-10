@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # App settings
     debug: bool = False
 
+    # GCS bucket for forecast tracking (reuse existing bucket)
+    gcs_bucket: str = "total-now-339022-mirofish-results"
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
