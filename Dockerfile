@@ -1,5 +1,14 @@
-# ---- Build stage ----
-FROM python:3.12-slim AS builder
+# ---- Frontend build stage ----
+FROM node:22-slim AS frontend-builder
+
+WORKDIR /frontend
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+# ---- Python build stage ----
+FROM python:3.12-slim AS backend-builder
 
 WORKDIR /build
 COPY pyproject.toml .
@@ -12,11 +21,12 @@ FROM python:3.12-slim AS runtime
 WORKDIR /app
 
 # Copy installed packages from builder
-COPY --from=builder /install /usr/local
+COPY --from=backend-builder /install /usr/local
 
 # Copy application code
 COPY src/ src/
 COPY gunicorn.conf.py .
+COPY --from=frontend-builder /frontend/dist frontend/dist/
 
 # Create non-root user
 RUN useradd --create-home appuser

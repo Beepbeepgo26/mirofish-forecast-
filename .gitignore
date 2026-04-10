@@ -12,3 +12,4 @@ htmlcov/
 .coverage
 *.db
 .DS_Store
+node_modules/
