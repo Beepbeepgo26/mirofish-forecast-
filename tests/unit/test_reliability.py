@@ -46,9 +46,7 @@ def _make_scored(
 class TestECE:
     def test_perfect_calibration_low_ece(self) -> None:
         """All correct at 60% confidence should give non-zero ECE."""
-        forecasts = [
-            _make_scored(prob_up=0.6, direction_correct=True) for _ in range(50)
-        ]
+        forecasts = [_make_scored(prob_up=0.6, direction_correct=True) for _ in range(50)]
         ece = compute_ece(forecasts)
         assert ece > 0  # Not perfectly calibrated (100% accuracy at 60% conf)
 
@@ -58,17 +56,15 @@ class TestECE:
 
 class TestIntervalCoverage:
     def test_all_covered(self) -> None:
-        forecasts = [
-            _make_scored(p50_hit=True, p90_hit=True) for _ in range(20)
-        ]
+        forecasts = [_make_scored(p50_hit=True, p90_hit=True) for _ in range(20)]
         cov = compute_interval_coverage(forecasts)
         assert cov["p50_coverage"] == 1.0
         assert cov["p90_coverage"] == 1.0
 
     def test_partial_coverage(self) -> None:
-        forecasts = [
-            _make_scored(p50_hit=True, p90_hit=True) for _ in range(8)
-        ] + [_make_scored(p50_hit=False, p90_hit=True) for _ in range(2)]
+        forecasts = [_make_scored(p50_hit=True, p90_hit=True) for _ in range(8)] + [
+            _make_scored(p50_hit=False, p90_hit=True) for _ in range(2)
+        ]
         cov = compute_interval_coverage(forecasts)
         assert cov["p50_coverage"] == 0.8
         assert cov["p90_coverage"] == 1.0

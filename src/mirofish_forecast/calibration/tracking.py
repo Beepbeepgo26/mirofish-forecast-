@@ -54,9 +54,7 @@ class ForecastTracker:
             vix_at_forecast=vix_at_forecast,
             fear_greed_at_forecast=fear_greed_at_forecast,
             agent_disagreement=agent_disagreement,
-            sim_success_rate=(
-                forecast.successful_simulations / max(forecast.total_simulations, 1)
-            ),
+            sim_success_rate=(forecast.successful_simulations / max(forecast.total_simulations, 1)),
             sim_preset=forecast.sim_preset,
             market_regime=market_regime,
         )
@@ -104,9 +102,7 @@ class ForecastTracker:
 
         # Score the forecast
         flat_threshold = tracking.current_price * 0.001
-        actual_return = (
-            (actual_price - tracking.current_price) / tracking.current_price * 100
-        )
+        actual_return = (actual_price - tracking.current_price) / tracking.current_price * 100
 
         if actual_price > tracking.current_price + flat_threshold:
             actual_direction = "up"
@@ -217,9 +213,7 @@ class ForecastTracker:
             price = data.fast_info.last_price
             return round(float(price), 2) if price else None
         except Exception:
-            logger.warning(
-                f"Failed to fetch actual price for {instrument}", exc_info=True
-            )
+            logger.warning(f"Failed to fetch actual price for {instrument}", exc_info=True)
             return None
 
     def _add_to_index(self, forecast_id: str) -> None:

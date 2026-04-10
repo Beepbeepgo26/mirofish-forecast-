@@ -156,4 +156,3 @@ ACI_MAX_ALPHA = 0.30  # Don't widen beyond 70% coverage
 
 # Reliability diagram
 RELIABILITY_NUM_BINS = 10  # Number of bins for reliability diagram
-

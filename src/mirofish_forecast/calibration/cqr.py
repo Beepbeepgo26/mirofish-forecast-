@@ -75,9 +75,7 @@ class CQRCalibrator:
                 [[f.get(col, 0) or 0 for col in feature_cols] for f in features],
                 dtype=np.float32,
             )
-            y_residual = np.array(
-                [f["residual"] for f in features], dtype=np.float32
-            )
+            y_residual = np.array([f["residual"] for f in features], dtype=np.float32)
 
             # Split: training + calibration
             n = len(features)

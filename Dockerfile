@@ -18,6 +18,9 @@ RUN pip install --no-cache-dir --prefix=/install .
 # ---- Runtime stage ----
 FROM python:3.12-slim AS runtime
 
+ARG GIT_SHA=unknown
+LABEL git.sha="${GIT_SHA}"
+
 WORKDIR /app
 
 # Copy installed packages from builder

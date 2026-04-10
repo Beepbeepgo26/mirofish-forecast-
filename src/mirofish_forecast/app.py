@@ -11,9 +11,9 @@ from mirofish_forecast.config.settings import get_settings
 # Resolve the frontend dist directory
 # In Docker: WORKDIR is /app, so frontend/dist/ is at /app/frontend/dist/
 # In local dev: relative to the source file works
-_FRONTEND_DIR_CWD = os.path.abspath(os.path.join(os.getcwd(), 'frontend', 'dist'))
+_FRONTEND_DIR_CWD = os.path.abspath(os.path.join(os.getcwd(), "frontend", "dist"))
 _FRONTEND_DIR_SRC = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'dist')
+    os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
 )
 _FRONTEND_DIR = _FRONTEND_DIR_CWD if os.path.isdir(_FRONTEND_DIR_CWD) else _FRONTEND_DIR_SRC
 
@@ -23,7 +23,7 @@ def create_app() -> Flask:
     app = Flask(
         __name__,
         static_folder=_FRONTEND_DIR if os.path.isdir(_FRONTEND_DIR) else None,
-        static_url_path='',
+        static_url_path="",
     )
 
     settings = get_settings()
@@ -35,14 +35,14 @@ def create_app() -> Flask:
     app.register_blueprint(forecast_bp, url_prefix="/api/forecast")
 
     # Serve Vue SPA — catch-all for non-API routes
-    @app.route('/', defaults={'path': ''})
-    @app.route('/<path:path>')
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>")
     def serve_frontend(path: str):
         """Serve frontend static files, falling back to index.html for SPA routing."""
         if os.path.isdir(_FRONTEND_DIR):
             if path and os.path.isfile(os.path.join(_FRONTEND_DIR, path)):
                 return send_from_directory(_FRONTEND_DIR, path)
-            return send_from_directory(_FRONTEND_DIR, 'index.html')
-        return 'Frontend not built. Run: cd frontend && npm run build', 404
+            return send_from_directory(_FRONTEND_DIR, "index.html")
+        return "Frontend not built. Run: cd frontend && npm run build", 404
 
     return app

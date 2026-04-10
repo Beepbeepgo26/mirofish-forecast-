@@ -227,3 +227,31 @@ def get_calibration_status():
         }
     )
 
+
+@forecast_bp.route("/check-outcomes", methods=["POST"])
+def check_outcomes():
+    """POST /api/forecast/check-outcomes
+
+    Trigger outcome checking for all pending forecasts.
+    Called by Cloud Scheduler every 30 minutes.
+    Can also be called manually.
+    """
+    settings = current_app.config["SETTINGS"]
+    tracker = ForecastTracker(settings)
+
+    checked = tracker.check_all_pending()
+
+    return jsonify(
+        {
+            "checked": len(checked),
+            "results": [
+                {
+                    "forecast_id": r.forecast_id,
+                    "direction_correct": r.direction_correct,
+                    "absolute_error": r.absolute_error,
+                    "actual_price": r.actual_price,
+                }
+                for r in checked
+            ],
+        }
+    )

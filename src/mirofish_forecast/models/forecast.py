@@ -132,4 +132,3 @@ class ForecastTracking(MiroFishBaseModel):
     p90_hit: bool | None = None
     direction_correct: bool | None = None
     absolute_error: float | None = None
-

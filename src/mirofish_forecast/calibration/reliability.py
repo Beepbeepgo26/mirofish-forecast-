@@ -33,11 +33,7 @@ def compute_ece(
     if not forecasts:
         return 0.0
 
-    scored = [
-        f
-        for f in forecasts
-        if f.outcome_checked and f.direction_correct is not None
-    ]
+    scored = [f for f in forecasts if f.outcome_checked and f.direction_correct is not None]
     if len(scored) < 10:
         return 0.0
 
@@ -75,9 +71,7 @@ def compute_interval_coverage(
     Returns:
         Dict with coverage at different levels
     """
-    scored = [
-        f for f in forecasts if f.outcome_checked and f.actual_price is not None
-    ]
+    scored = [f for f in forecasts if f.outcome_checked and f.actual_price is not None]
     if not scored:
         return {"p50_coverage": 0.0, "p90_coverage": 0.0}
 
@@ -104,11 +98,7 @@ def compute_reliability_diagram_data(
 
     A perfectly calibrated model produces points on the y=x diagonal.
     """
-    scored = [
-        f
-        for f in forecasts
-        if f.outcome_checked and f.direction_correct is not None
-    ]
+    scored = [f for f in forecasts if f.outcome_checked and f.direction_correct is not None]
     if len(scored) < 10:
         return []
 
@@ -162,9 +152,7 @@ def compute_calibration_summary(forecasts: list[ForecastTracking]) -> dict:
         "scored_forecasts": len(scored),
         "pending_forecasts": len(forecasts) - len(scored),
         "calibration_ready": len(scored) >= constants.CALIBRATION_MIN_SAMPLES,
-        "direction_accuracy": round(
-            len(direction_correct) / max(len(scored), 1), 3
-        ),
+        "direction_accuracy": round(len(direction_correct) / max(len(scored), 1), 3),
         "mean_absolute_error": round(
             sum(f.absolute_error for f in scored if f.absolute_error is not None)
             / max(len(scored), 1),

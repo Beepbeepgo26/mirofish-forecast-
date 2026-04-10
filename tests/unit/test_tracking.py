@@ -57,9 +57,7 @@ def _patch_cache(mock_cache: MagicMock):
 
 
 class TestStoreAndRetrieve:
-    def test_store_forecast(
-        self, mock_settings, mock_cache: MagicMock, _patch_cache
-    ) -> None:
+    def test_store_forecast(self, mock_settings, mock_cache: MagicMock, _patch_cache) -> None:
         tracker = ForecastTracker(mock_settings)
         forecast = _make_forecast()
         tracking = tracker.store_forecast(forecast, vix_at_forecast=22.3)
@@ -73,9 +71,7 @@ class TestStoreAndRetrieve:
 
 
 class TestCheckOutcome:
-    def test_too_early(
-        self, mock_settings, mock_cache: MagicMock, _patch_cache
-    ) -> None:
+    def test_too_early(self, mock_settings, mock_cache: MagicMock, _patch_cache) -> None:
         """Should not check if horizon hasn't elapsed."""
         tracking = ForecastTracking(
             forecast_id="test",
@@ -100,9 +96,7 @@ class TestCheckOutcome:
         assert result is not None
         assert not result.outcome_checked
 
-    def test_scores_correctly(
-        self, mock_settings, mock_cache: MagicMock, _patch_cache
-    ) -> None:
+    def test_scores_correctly(self, mock_settings, mock_cache: MagicMock, _patch_cache) -> None:
         """Should correctly score when horizon has elapsed."""
         old_time = datetime.utcnow() - timedelta(hours=3)
         tracking = ForecastTracking(
@@ -137,9 +131,7 @@ class TestCheckOutcome:
 
 
 class TestGetCalibrationFeatures:
-    def test_extracts_features(
-        self, mock_settings, mock_cache: MagicMock, _patch_cache
-    ) -> None:
+    def test_extracts_features(self, mock_settings, mock_cache: MagicMock, _patch_cache) -> None:
         scored = ForecastTracking(
             forecast_id="test",
             instrument="ES",
