@@ -1,15 +1,19 @@
 """Retail agent context block template — sentiment-first, simple language."""
 
+from mirofish_forecast.config.constants import get_instrument_config
+
 
 def build_retail_context_template(
-    fear_greed: float | None,
-    fear_greed_desc: str | None,
-    vix_spot: float | None,
-    es_price: float | None,
-    nq_price: float | None,
-    spy_price: float | None,
+    instrument: str = "ES",
+    fear_greed: float | None = None,
+    fear_greed_desc: str | None = None,
+    vix_spot: float | None = None,
+    es_price: float | None = None,
+    nq_price: float | None = None,
+    spy_price: float | None = None,
 ) -> str:
     """Build a deterministic retail context block from raw values."""
+    config = get_instrument_config(instrument)
 
     def fmt(val: float | None, decimals: int = 2) -> str:
         if val is None:
@@ -51,19 +55,25 @@ def build_retail_context_template(
         else:
             vix_gauge = f"{vix_spot:.1f} — HIGH FEAR, markets are stressed"
 
-    # Round number levels
+    # Round number levels — instrument-aware
     round_levels = ""
     if es_price is not None:
-        lower_round = int(es_price / 50) * 50
-        upper_round = lower_round + 50
+        round_spacing = {
+            "ES": 50,
+            "NQ": 250,
+            "CL": 1.0,
+            "GC": 25,
+        }.get(instrument.upper(), 50)
+        lower_round = int(es_price / round_spacing) * round_spacing
+        upper_round = lower_round + round_spacing
         round_levels = f"Key round numbers: {lower_round}, {upper_round}"
 
     lines = [
-        "=== SENTIMENT & PRICE CONTEXT ===",
+        f"=== SENTIMENT & PRICE CONTEXT ({config['name']}) ===",
         f"Fear & Greed Index: {fg_reading}",
         f"VIX (Fear Gauge): {vix_gauge}",
         "",
-        f"ES Futures: {fmt(es_price)}",
+        f"{config['name']}: {fmt(es_price)}",
         f"NQ Futures: {fmt(nq_price)}",
         f"SPY: {fmt(spy_price)}",
         round_levels,

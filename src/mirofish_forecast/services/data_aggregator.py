@@ -1,6 +1,8 @@
 import logging
 from datetime import datetime
 
+from mirofish_forecast.config import constants
+from mirofish_forecast.config.constants import get_instrument_config
 from mirofish_forecast.config.settings import Settings
 from mirofish_forecast.data.cache import CacheClient
 from mirofish_forecast.data.fear_greed_client import FearGreedClient
@@ -48,6 +50,36 @@ class DataAggregator:
 
         logger.info("Market context assembled successfully")
         return context
+
+    def get_instrument_price(self, instrument: str) -> float | None:
+        """Get the current price for a specific instrument via yfinance."""
+        config = get_instrument_config(instrument)
+        ticker = config["yfinance_ticker"]
+
+        cache_key = f"price:{instrument.lower()}"
+        cached = self._cache.get(cache_key)
+        if cached:
+            try:
+                return float(cached)
+            except (TypeError, ValueError):
+                pass
+
+        try:
+            import yfinance as yf
+
+            data = yf.Ticker(ticker)
+            price = data.fast_info.last_price
+            if price:
+                price = round(float(price), config["price_decimals"])
+                self._cache.set(cache_key, str(price), constants.CACHE_TTL_OHLCV)
+                return price
+        except Exception:
+            logger.warning(
+                f"Failed to fetch price for {instrument} ({ticker})",
+                exc_info=True,
+            )
+
+        return None
 
     def health_check(self) -> dict[str, bool]:
         """Check connectivity of cache and data sources."""

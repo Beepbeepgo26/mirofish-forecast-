@@ -205,7 +205,7 @@ class ForecastSynthesizer:
             logger.error(f"Synthesis LLM call failed: {e}", exc_info=True)
             # Fallback: deterministic text from distribution
             return (
-                f"ES is most likely to trade between"
+                f"{scenario.instrument} is most likely to trade between"
                 f" {distribution.percentile_25:.2f}–{distribution.percentile_75:.2f}"
                 f" over the next {scenario.forecast_horizon_minutes} minutes"
                 f" (50% confidence interval)."

@@ -1,14 +1,18 @@
 """Market maker agent context block template — positioning and flow first."""
 
+from mirofish_forecast.config.constants import get_instrument_config
+
 
 def build_market_maker_context_template(
-    nyse_tick: float | None,
-    nyse_add: float | None,
-    nyse_vold: float | None,
-    vix_spot: float | None,
-    es_price: float | None,
+    instrument: str = "ES",
+    nyse_tick: float | None = None,
+    nyse_add: float | None = None,
+    nyse_vold: float | None = None,
+    vix_spot: float | None = None,
+    es_price: float | None = None,
 ) -> str:
     """Build a deterministic market maker context block from raw values."""
+    config = get_instrument_config(instrument)
 
     def fmt(val: float | None, decimals: int = 2) -> str:
         if val is None:
@@ -50,13 +54,13 @@ def build_market_maker_context_template(
             vold_signal = f"{nyse_vold:+.0f}M — Down volume dominates (selling conviction)"
 
     lines = [
-        "=== FLOW & POSITIONING CONTEXT ===",
+        f"=== FLOW & POSITIONING CONTEXT ({config['name']}) ===",
         f"NYSE TICK: {tick_signal}",
         f"NYSE ADD (Advance-Decline): {add_signal}",
         f"NYSE VOLD (Up Vol - Down Vol): {vold_signal}",
         "",
         f"VIX: {fmt(vix_spot)} (implied vol reference for hedging calculations)",
-        f"ES Price: {fmt(es_price)}",
+        f"{config['name']} Price: {fmt(es_price)}",
         "",
         "NOTE: If TICK, ADD, and VOLD are all N/A, IB market internals relay is offline.",
         "In this case, rely on VIX and price action for flow inference.",

@@ -51,6 +51,7 @@ class CrossAssetSnapshot(MiroFishBaseModel):
     qqq_price: float | None = None
     tlt_price: float | None = None
     gld_price: float | None = None
+    gc_price: float | None = None
     dxy_price: float | None = None
     crude_price: float | None = None
     vix_price: float | None = None

@@ -33,6 +33,7 @@ YFINANCE_TICKERS = {
     "dxy": "DX-Y.NYB",
     "crude": "CL=F",
     "vix": "^VIX",
+    "gc": "GC=F",
 }
 
 # VIX regime thresholds
@@ -156,3 +157,77 @@ ACI_MAX_ALPHA = 0.30  # Don't widen beyond 70% coverage
 
 # Reliability diagram
 RELIABILITY_NUM_BINS = 10  # Number of bins for reliability diagram
+
+# --- Multi-Instrument Configuration ---
+
+INSTRUMENT_CONFIG: dict[str, dict] = {
+    "ES": {
+        "name": "E-mini S&P 500",
+        "yfinance_ticker": "ES=F",
+        "asset_class": "equity_index",
+        "tick_size": 0.25,
+        "point_value": 50.0,
+        "typical_daily_range": 50,
+        "max_bar_move_pct": 0.0015,
+        "drift_anchor_weight": 0.3,
+        "price_decimals": 2,
+        "description": "S&P 500 equity index futures",
+        "key_drivers": ("Fed policy, earnings, risk sentiment, VIX, yield curve"),
+    },
+    "NQ": {
+        "name": "E-mini Nasdaq 100",
+        "yfinance_ticker": "NQ=F",
+        "asset_class": "equity_index",
+        "tick_size": 0.25,
+        "point_value": 20.0,
+        "typical_daily_range": 250,
+        "max_bar_move_pct": 0.0020,
+        "drift_anchor_weight": 0.3,
+        "price_decimals": 2,
+        "description": "Nasdaq 100 tech-heavy equity index futures",
+        "key_drivers": (
+            "Big tech earnings, AI/semiconductor news, growth vs value rotation,"
+            " Treasury yields (growth sensitivity)"
+        ),
+    },
+    "CL": {
+        "name": "Crude Oil WTI",
+        "yfinance_ticker": "CL=F",
+        "asset_class": "commodity_energy",
+        "tick_size": 0.01,
+        "point_value": 1000.0,
+        "typical_daily_range": 2.5,
+        "max_bar_move_pct": 0.0025,
+        "drift_anchor_weight": 0.25,
+        "price_decimals": 2,
+        "description": "West Texas Intermediate crude oil futures",
+        "key_drivers": (
+            "OPEC+ production decisions, EIA inventory reports,"
+            " geopolitical risk (Middle East), DXY, global demand (China PMI)"
+        ),
+    },
+    "GC": {
+        "name": "Gold (COMEX)",
+        "yfinance_ticker": "GC=F",
+        "asset_class": "commodity_metal",
+        "tick_size": 0.10,
+        "point_value": 100.0,
+        "typical_daily_range": 30,
+        "max_bar_move_pct": 0.0020,
+        "drift_anchor_weight": 0.25,
+        "price_decimals": 2,
+        "description": "COMEX gold futures",
+        "key_drivers": (
+            "Real interest rates (10Y - CPI), DXY inverse correlation,"
+            " central bank buying, geopolitical safe-haven flows,"
+            " inflation expectations"
+        ),
+    },
+}
+
+SUPPORTED_INSTRUMENTS = list(INSTRUMENT_CONFIG.keys())
+
+
+def get_instrument_config(instrument: str) -> dict:
+    """Get config for an instrument, defaulting to ES if not found."""
+    return INSTRUMENT_CONFIG.get(instrument.upper(), INSTRUMENT_CONFIG[DEFAULT_INSTRUMENT])

@@ -8,6 +8,7 @@ Two-tier approach:
 import logging
 from datetime import datetime
 
+from mirofish_forecast.config.constants import get_instrument_config
 from mirofish_forecast.config.settings import Settings
 from mirofish_forecast.llm.client import LLMClient
 from mirofish_forecast.llm.prompts.build_scenarios import BUILD_SCENARIOS_SYSTEM_PROMPT
@@ -45,18 +46,20 @@ class ScenarioBuilder:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._llm = LLMClient(settings)
+        self._current_instrument: str = "ES"
 
     def build(self, query: ForecastQuery, context: MarketContext) -> SimulationScenario:
         """Build a complete SimulationScenario.
 
         Attempts LLM-powered generation first, falls back to templates on failure.
         """
+        self._current_instrument = query.instrument
         logger.info(
             f"Building scenario for {query.instrument} ({query.forecast_horizon_minutes}min)"
         )
 
         # Step 1: Generate agent-specific context blocks
-        inst_ctx, retail_ctx, mm_ctx = self._build_context_blocks(context)
+        inst_ctx, retail_ctx, mm_ctx = self._build_context_blocks(query, context)
 
         # Step 2: Generate ranked scenarios and market regime
         scenario_data = self._build_scenarios(query, context)
@@ -64,7 +67,7 @@ class ScenarioBuilder:
         return SimulationScenario(
             instrument=query.instrument,
             forecast_horizon_minutes=query.forecast_horizon_minutes,
-            current_price=context.cross_asset.es_price,
+            current_price=self._resolve_price(query.instrument, context),
             target_time=query.target_time,
             market_regime=scenario_data["market_regime"],
             always_in_direction=scenario_data["always_in_direction"],
@@ -79,28 +82,67 @@ class ScenarioBuilder:
         )
 
     # ---------------------------------------------------------------
+    # Price resolution
+    # ---------------------------------------------------------------
+
+    def _resolve_price(self, instrument: str, context: MarketContext) -> float | None:
+        """Resolve current price for the given instrument from cross-asset data."""
+        config = get_instrument_config(instrument)
+
+        # Try cross-asset snapshot first
+        price_map: dict[str, float | None] = {
+            "ES": context.cross_asset.es_price,
+            "NQ": context.cross_asset.nq_price,
+            "CL": context.cross_asset.crude_price,
+            "GC": context.cross_asset.gc_price or context.cross_asset.gld_price,
+        }
+        price = price_map.get(instrument.upper())
+
+        # If no cross-asset price, fetch directly
+        if price is None:
+            try:
+                import yfinance as yf
+
+                data = yf.Ticker(config["yfinance_ticker"])
+                price = round(float(data.fast_info.last_price), config["price_decimals"])
+            except Exception:
+                logger.warning(f"Could not resolve price for {instrument}")
+                price = None
+
+        return price
+
+    # ---------------------------------------------------------------
     # Context block generation
     # ---------------------------------------------------------------
 
     def _build_context_blocks(
-        self, context: MarketContext
+        self, query: ForecastQuery, context: MarketContext
     ) -> tuple[AgentContextBlock, AgentContextBlock, AgentContextBlock]:
         """Generate agent-specific context blocks. LLM first, template fallback."""
         try:
-            return self._build_context_blocks_llm(context)
+            return self._build_context_blocks_llm(query, context)
         except Exception:
             logger.warning("LLM context interpretation failed, using templates", exc_info=True)
-            return self._build_context_blocks_template(context)
+            return self._build_context_blocks_template(query, context)
 
     def _build_context_blocks_llm(
-        self, context: MarketContext
+        self, query: ForecastQuery, context: MarketContext
     ) -> tuple[AgentContextBlock, AgentContextBlock, AgentContextBlock]:
         """Use GPT-4o to generate interpretive context blocks."""
+        inst_config = get_instrument_config(query.instrument)
+
         context_json = context.model_dump_json()
+        system_prompt = INTERPRET_CONTEXT_SYSTEM_PROMPT.replace(
+            "{instrument_name}", inst_config["name"]
+        ).replace("{instrument}", query.instrument)
 
         parsed: ParsedContextBlocks = self._llm.parse_structured(
-            system_prompt=INTERPRET_CONTEXT_SYSTEM_PROMPT,
-            user_message=f"Current market data:\n{context_json}",
+            system_prompt=system_prompt,
+            user_message=(
+                f"Instrument: {inst_config['name']} ({query.instrument})\n"
+                f"Key drivers: {inst_config['key_drivers']}\n\n"
+                f"Current market data:\n{context_json}"
+            ),
             response_format=ParsedContextBlocks,
             temperature=0.3,
             max_tokens=2000,
@@ -126,12 +168,16 @@ class ScenarioBuilder:
         return institutional, retail, market_maker
 
     def _build_context_blocks_template(
-        self, context: MarketContext
+        self, query: ForecastQuery, context: MarketContext
     ) -> tuple[AgentContextBlock, AgentContextBlock, AgentContextBlock]:
         """Deterministic template fallback for context blocks."""
+        instrument = query.instrument
+        current_price = self._resolve_price(instrument, context)
+
         institutional = AgentContextBlock(
             agent_type="institutional",
             context_text=build_institutional_context_template(
+                instrument=instrument,
                 fed_funds=context.macro.fed_funds_rate,
                 ten_year=context.macro.ten_year_yield,
                 two_year=context.macro.two_year_yield,
@@ -142,7 +188,7 @@ class ScenarioBuilder:
                 vix_spot=context.vix.spot,
                 vix_regime=context.vix.regime.value if context.vix.regime else None,
                 fear_greed=context.fear_greed.value,
-                es_price=context.cross_asset.es_price,
+                es_price=current_price,
                 dxy_price=context.cross_asset.dxy_price,
                 tlt_price=context.cross_asset.tlt_price,
                 gld_price=context.cross_asset.gld_price,
@@ -154,10 +200,11 @@ class ScenarioBuilder:
         retail = AgentContextBlock(
             agent_type="retail",
             context_text=build_retail_context_template(
+                instrument=instrument,
                 fear_greed=context.fear_greed.value,
                 fear_greed_desc=context.fear_greed.description,
                 vix_spot=context.vix.spot,
-                es_price=context.cross_asset.es_price,
+                es_price=current_price,
                 nq_price=context.cross_asset.nq_price,
                 spy_price=context.cross_asset.spy_price,
             ),
@@ -167,11 +214,12 @@ class ScenarioBuilder:
         market_maker = AgentContextBlock(
             agent_type="market_maker",
             context_text=build_market_maker_context_template(
+                instrument=instrument,
                 nyse_tick=context.internals.nyse_tick,
                 nyse_add=context.internals.nyse_add,
                 nyse_vold=context.internals.nyse_vold,
                 vix_spot=context.vix.spot,
-                es_price=context.cross_asset.es_price,
+                es_price=current_price,
             ),
             priority_signals=self._infer_mm_signals(context),
         )
@@ -192,17 +240,24 @@ class ScenarioBuilder:
 
     def _build_scenarios_llm(self, query: ForecastQuery, context: MarketContext) -> dict:
         """Use GPT-4o to generate ranked scenarios."""
+        inst_config = get_instrument_config(query.instrument)
+
         user_message = (
             f"Forecast query: {query.raw_query}\n"
-            f"Instrument: {query.instrument}\n"
+            f"Instrument: {query.instrument} ({inst_config['name']})\n"
+            f"Key drivers: {inst_config['key_drivers']}\n"
             f"Horizon: {query.forecast_horizon_minutes} minutes\n"
             f"Direction bias: {query.direction_bias or 'none stated'}\n"
             f"Event mention: {query.mentions_event or 'none'}\n\n"
             f"Current market data:\n{context.model_dump_json()}"
         )
 
+        system_prompt = BUILD_SCENARIOS_SYSTEM_PROMPT.replace(
+            "{instrument_name}", inst_config["name"]
+        ).replace("{instrument}", query.instrument)
+
         parsed: ParsedScenarioSet = self._llm.parse_structured(
-            system_prompt=BUILD_SCENARIOS_SYSTEM_PROMPT,
+            system_prompt=system_prompt,
             user_message=user_message,
             response_format=ParsedScenarioSet,
             temperature=0.4,
@@ -277,7 +332,8 @@ class ScenarioBuilder:
 
     def _build_scenarios_template(self, query: ForecastQuery, context: MarketContext) -> dict:
         """Deterministic fallback scenario generation based on VIX regime and Fear & Greed."""
-        es_price = context.cross_asset.es_price or 5400.0
+        inst_config = get_instrument_config(query.instrument)
+        current_price = self._resolve_price(query.instrument, context) or 5400.0
         vix = context.vix.spot or 20.0
         fg = context.fear_greed.value or 50.0
 
@@ -307,13 +363,21 @@ class ScenarioBuilder:
             direction = "neutral"
             score = 5.0
 
-        # Scale range by VIX
-        range_factor = vix / 20.0  # VIX 20 = baseline
-        base_range = 15.0 * range_factor  # ~15 points at VIX 20
+        # Scale range by VIX and instrument's typical daily range
+        range_factor = vix / 20.0
+        base_range = inst_config["typical_daily_range"] / 3.0 * range_factor
+
+        # Round number spacing varies by instrument
+        round_spacing = {
+            "ES": 50,
+            "NQ": 250,
+            "CL": 1.0,
+            "GC": 25,
+        }.get(query.instrument.upper(), 50)
+        lower_round = int(current_price / round_spacing) * round_spacing
+        upper_round = lower_round + round_spacing
 
         # Generate key levels
-        lower_round = int(es_price / 50) * 50
-        upper_round = lower_round + 50
         key_levels = [
             KeyLevel(
                 price=float(lower_round),
@@ -328,13 +392,13 @@ class ScenarioBuilder:
                 source="Round number",
             ),
             KeyLevel(
-                price=round(es_price - base_range, 2),
+                price=round(current_price - base_range, 2),
                 label="Support",
                 significance="high",
                 source="VIX-scaled range",
             ),
             KeyLevel(
-                price=round(es_price + base_range, 2),
+                price=round(current_price + base_range, 2),
                 label="Resistance",
                 significance="high",
                 source="VIX-scaled range",
@@ -345,27 +409,28 @@ class ScenarioBuilder:
         scenarios = [
             ScenarioOutcome(
                 rank=ScenarioRank.MOST_PROBABLE,
-                name=f"Range-bound near {es_price:.0f}",
+                name=f"Range-bound near {current_price:.0f}",
                 description=(
                     f"{query.instrument} consolidates in a"
                     f" {base_range:.0f}-point range around current levels."
                 ),
                 probability=0.55,
-                price_target=es_price,
-                price_range_low=round(es_price - base_range * 0.6, 2),
-                price_range_high=round(es_price + base_range * 0.6, 2),
+                price_target=current_price,
+                price_range_low=round(current_price - base_range * 0.6, 2),
+                price_range_high=round(current_price + base_range * 0.6, 2),
                 trigger="Continued low-conviction flow",
                 invalidation=(
-                    f"Break above {es_price + base_range:.0f} or below {es_price - base_range:.0f}"
+                    f"Break above {current_price + base_range:.0f}"
+                    f" or below {current_price - base_range:.0f}"
                 ),
                 key_risk="Unexpected headline catalyst",
             ),
             ScenarioOutcome(
                 rank=ScenarioRank.SECONDARY,
                 name=(
-                    f"Move to {es_price + base_range:.0f}"
+                    f"Move to {current_price + base_range:.0f}"
                     if direction != "short"
-                    else f"Decline to {es_price - base_range:.0f}"
+                    else f"Decline to {current_price - base_range:.0f}"
                 ),
                 description=(
                     f"Directional move {'higher' if direction != 'short' else 'lower'}"
@@ -373,19 +438,21 @@ class ScenarioBuilder:
                 ),
                 probability=0.30,
                 price_target=round(
-                    es_price + base_range if direction != "short" else es_price - base_range,
+                    current_price + base_range
+                    if direction != "short"
+                    else current_price - base_range,
                     2,
                 ),
                 price_range_low=round(
-                    es_price - base_range * 0.3
+                    current_price - base_range * 0.3
                     if direction != "short"
-                    else es_price - base_range * 1.3,
+                    else current_price - base_range * 1.3,
                     2,
                 ),
                 price_range_high=round(
-                    es_price + base_range * 1.3
+                    current_price + base_range * 1.3
                     if direction != "short"
-                    else es_price + base_range * 0.3,
+                    else current_price + base_range * 0.3,
                     2,
                 ),
                 trigger=(
@@ -405,8 +472,8 @@ class ScenarioBuilder:
                 ),
                 probability=0.15,
                 price_target=None,
-                price_range_low=round(es_price - base_range * 2, 2),
-                price_range_high=round(es_price + base_range * 2, 2),
+                price_range_low=round(current_price - base_range * 2, 2),
+                price_range_high=round(current_price + base_range * 2, 2),
                 trigger="Surprise headline, liquidity vacuum, or gamma unwind",
                 invalidation="Quick mean reversion to prior range",
                 key_risk="Gap risk, stop cascades",

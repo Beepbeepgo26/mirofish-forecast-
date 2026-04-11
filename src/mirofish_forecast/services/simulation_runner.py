@@ -130,6 +130,9 @@ class MonteCarloRunner:
         api_semaphore: asyncio.Semaphore,
     ) -> SimulationResult:
         """Run one full simulation across all bars."""
+        from mirofish_forecast.config.constants import get_instrument_config
+
+        inst_config = get_instrument_config(scenario.instrument)
         seed = random.randint(0, 2**32 - 1)
         rng = random.Random(seed)
         temperature = round(
@@ -159,6 +162,7 @@ class MonteCarloRunner:
                         scenario.forecast_horizon_minutes,
                         temperature,
                         api_semaphore,
+                        instrument=scenario.instrument,
                     ),
                     self._agent_decision(
                         "retail",
@@ -171,6 +175,7 @@ class MonteCarloRunner:
                         scenario.forecast_horizon_minutes,
                         temperature,
                         api_semaphore,
+                        instrument=scenario.instrument,
                     ),
                     self._agent_decision(
                         "market_maker",
@@ -183,6 +188,7 @@ class MonteCarloRunner:
                         scenario.forecast_horizon_minutes,
                         temperature,
                         api_semaphore,
+                        instrument=scenario.instrument,
                     ),
                     return_exceptions=True,
                 )
@@ -200,18 +206,18 @@ class MonteCarloRunner:
                 if valid_targets:
                     avg_target = sum(valid_targets) / len(valid_targets)
 
-                    # Clamp: max per-bar move as % of current price
-                    max_move = current_price * constants.SIM_MAX_BAR_MOVE_PCT
+                    # Clamp: max per-bar move — instrument-specific
+                    max_move = current_price * inst_config["max_bar_move_pct"]
                     clamped_target = max(
                         current_price - max_move,
                         min(current_price + max_move, avg_target),
                     )
 
-                    # Drift anchor: blend toward starting price to prevent runaway
+                    # Drift anchor: blend toward starting price — instrument-specific
                     start_price = price_path[0]
                     anchored = (
-                        clamped_target * (1 - constants.SIM_DRIFT_ANCHOR_WEIGHT)
-                        + start_price * constants.SIM_DRIFT_ANCHOR_WEIGHT
+                        clamped_target * (1 - inst_config["drift_anchor_weight"])
+                        + start_price * inst_config["drift_anchor_weight"]
                     )
 
                     # Add small random noise
@@ -276,6 +282,29 @@ class MonteCarloRunner:
         last = scenario.scenarios[-1]
         return {"name": last.name, "description": last.description}
 
+    @staticmethod
+    def _get_price_guidance(instrument: str, current_price: float) -> str:
+        """Get instrument-specific price target guidance for agent prompts."""
+        guidance = {
+            "ES": (
+                f"ES typically moves 1-5 points per bar. Keep your target within"
+                f" 10 points of {current_price:.2f}. 1 ES point = $50."
+            ),
+            "NQ": (
+                f"NQ typically moves 5-20 points per bar. Keep your target within"
+                f" 40 points of {current_price:.2f}. 1 NQ point = $20."
+            ),
+            "CL": (
+                f"Crude oil typically moves $0.05-$0.20 per bar. Keep your target"
+                f" within $0.50 of {current_price:.2f}. 1 CL point = $1,000."
+            ),
+            "GC": (
+                f"Gold typically moves $1-5 per bar. Keep your target within"
+                f" $15 of {current_price:.2f}. 1 GC point = $100."
+            ),
+        }
+        return guidance.get(instrument.upper(), guidance["ES"])
+
     async def _agent_decision(
         self,
         agent_type: str,
@@ -288,8 +317,13 @@ class MonteCarloRunner:
         horizon_minutes: int,
         temperature: float,
         api_semaphore: asyncio.Semaphore,
+        instrument: str = "ES",
     ) -> AgentDecision:
         """Get a single agent's decision for one bar."""
+        from mirofish_forecast.config.constants import get_instrument_config
+
+        inst_config = get_instrument_config(instrument)
+
         prompt = AGENT_DECISION_SYSTEM_PROMPT.format(
             agent_type=agent_type,
             agent_context=context_text,
@@ -301,6 +335,8 @@ class MonteCarloRunner:
             price_history=", ".join(f"{p:.2f}" for p in price_path[-5:]),
             scenario_name=active_scenario["name"],
             scenario_description=active_scenario["description"],
+            instrument_name=inst_config["name"],
+            instrument_price_guidance=self._get_price_guidance(instrument, current_price),
         )
 
         async with api_semaphore:
