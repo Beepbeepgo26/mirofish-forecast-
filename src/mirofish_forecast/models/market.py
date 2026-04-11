@@ -75,6 +75,24 @@ class MarketInternals(MiroFishBaseModel):
     as_of: datetime | None = None
 
 
+class EconomicEvent(MiroFishBaseModel):
+    """A scheduled economic event that may impact markets."""
+
+    name: str  # "CPI", "FOMC", "NFP"
+    full_name: str  # "Consumer Price Index"
+    date: str  # "2026-04-14"
+    time: str | None = None  # "08:30 ET"
+    impact: str = "medium"  # "critical", "high", "medium", "low"
+    is_today: bool = False
+    is_this_week: bool = False
+    hours_until: float | None = None  # Negative = already released
+    consensus: str | None = None  # "2.8%"
+    prior: str | None = None  # "3.0%"
+    has_press_conference: bool = False
+    has_sep: bool = False  # Summary of Economic Projections
+    note: str | None = None
+
+
 class MarketContext(MiroFishBaseModel):
     """Unified market context assembled from all data sources.
 
@@ -87,4 +105,6 @@ class MarketContext(MiroFishBaseModel):
     cross_asset: CrossAssetSnapshot
     fear_greed: FearGreedData
     internals: MarketInternals
+    events_today: list[EconomicEvent] = []
+    events_this_week: list[EconomicEvent] = []
     assembled_at: datetime

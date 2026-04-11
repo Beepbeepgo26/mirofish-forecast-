@@ -1,0 +1,71 @@
+{
+  "year": 2026,
+  "source": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+  "last_updated": "2026-04-10",
+  "meetings": [
+    {
+      "dates": ["2026-01-27", "2026-01-28"],
+      "statement_date": "2026-01-28",
+      "statement_time": "14:00 ET",
+      "press_conference": true,
+      "sep": false,
+      "note": "First meeting of 2026"
+    },
+    {
+      "dates": ["2026-03-17", "2026-03-18"],
+      "statement_date": "2026-03-18",
+      "statement_time": "14:00 ET",
+      "press_conference": true,
+      "sep": true,
+      "note": "Includes Summary of Economic Projections"
+    },
+    {
+      "dates": ["2026-04-28", "2026-04-29"],
+      "statement_date": "2026-04-29",
+      "statement_time": "14:00 ET",
+      "press_conference": true,
+      "sep": false,
+      "note": ""
+    },
+    {
+      "dates": ["2026-06-16", "2026-06-17"],
+      "statement_date": "2026-06-17",
+      "statement_time": "14:00 ET",
+      "press_conference": true,
+      "sep": true,
+      "note": "Includes Summary of Economic Projections"
+    },
+    {
+      "dates": ["2026-07-28", "2026-07-29"],
+      "statement_date": "2026-07-29",
+      "statement_time": "14:00 ET",
+      "press_conference": true,
+      "sep": false,
+      "note": ""
+    },
+    {
+      "dates": ["2026-09-15", "2026-09-16"],
+      "statement_date": "2026-09-16",
+      "statement_time": "14:00 ET",
+      "press_conference": true,
+      "sep": true,
+      "note": "Includes Summary of Economic Projections"
+    },
+    {
+      "dates": ["2026-10-27", "2026-10-28"],
+      "statement_date": "2026-10-28",
+      "statement_time": "14:00 ET",
+      "press_conference": true,
+      "sep": false,
+      "note": ""
+    },
+    {
+      "dates": ["2026-12-08", "2026-12-09"],
+      "statement_date": "2026-12-09",
+      "statement_time": "14:00 ET",
+      "press_conference": true,
+      "sep": true,
+      "note": "Includes Summary of Economic Projections"
+    }
+  ]
+}

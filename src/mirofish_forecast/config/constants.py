@@ -104,7 +104,7 @@ DEFAULT_SIM_PRESET = "standard"
 SIM_CONCURRENCY = 20  # Max concurrent simulations
 API_CONCURRENCY = 50  # Max concurrent LLM API calls across all sims
 WAVE_SIZE = 50  # Simulations per wave
-WAVE_PAUSE_SECONDS = 0.2   # semaphore already handles rate limiting; 1.0 was double-protection
+WAVE_PAUSE_SECONDS = 0.2  # semaphore already handles rate limiting; 1.0 was double-protection
 
 # Simulation parameters
 SIM_BARS_PER_HORIZON = 20  # Number of price bars to simulate per forecast
@@ -134,14 +134,14 @@ SIM_DRIFT_ANCHOR_WEIGHT = 0.3  # 30% weight pulling price back toward starting p
 
 # Regime-conditional drift anchor weights — override SIM_DRIFT_ANCHOR_WEIGHT per regime
 REGIME_ANCHOR_WEIGHTS = {
-    "tight_range":     0.45,
-    "volatile_chop":   0.40,
-    "trending_up":     0.10,
-    "trending_down":   0.10,
-    "trend_day_up":    0.05,
-    "trend_day_down":  0.05,
-    "breakout":        0.15,
-    "breakdown":       0.15,
+    "tight_range": 0.45,
+    "volatile_chop": 0.40,
+    "trending_up": 0.10,
+    "trending_down": 0.10,
+    "trend_day_up": 0.05,
+    "trend_day_down": 0.05,
+    "breakout": 0.15,
+    "breakdown": 0.15,
 }
 
 # --- Phase 5: Calibration ---
@@ -274,4 +274,83 @@ US_MARKET_HOLIDAYS_2026 = [
     "2026-09-07",  # Labor Day
     "2026-11-26",  # Thanksgiving
     "2026-12-25",  # Christmas
+]
+
+
+# --- Economic Calendar ---
+
+FRED_RELEASE_IDS: dict[str, dict] = {
+    "CPI": {
+        "release_id": 10,
+        "name": "Consumer Price Index",
+        "typical_time": "08:30 ET",
+        "impact": "high",
+    },
+    "NFP": {
+        "release_id": 50,
+        "name": "Employment Situation (Nonfarm Payrolls)",
+        "typical_time": "08:30 ET",
+        "impact": "high",
+    },
+    "GDP": {
+        "release_id": 53,
+        "name": "Gross Domestic Product",
+        "typical_time": "08:30 ET",
+        "impact": "high",
+    },
+    "PPI": {
+        "release_id": 46,
+        "name": "Producer Price Index",
+        "typical_time": "08:30 ET",
+        "impact": "medium",
+    },
+    "PCE": {
+        "release_id": 54,
+        "name": "Personal Consumption Expenditures",
+        "typical_time": "08:30 ET",
+        "impact": "high",
+    },
+    "RETAIL_SALES": {
+        "release_id": 9,
+        "name": "Advance Retail Sales",
+        "typical_time": "08:30 ET",
+        "impact": "medium",
+    },
+    "ISM_MFG": {
+        "release_id": 26,
+        "name": "ISM Manufacturing PMI",
+        "typical_time": "10:00 ET",
+        "impact": "medium",
+    },
+}
+
+EVENT_IMPACT_VOLATILITY_MULTIPLIER: dict[str, float] = {
+    "critical": 2.5,
+    "high": 2.0,
+    "medium": 1.5,
+    "low": 1.0,
+}
+
+# Calendar cache TTLs
+CACHE_TTL_CALENDAR_TODAY = 3600
+CACHE_TTL_CALENDAR_WEEK = 21600
+CACHE_TTL_CONSENSUS = 1800
+
+# 2026 FOMC meeting dates (statement release dates)
+FOMC_DATES_2026 = [
+    "2026-01-28",
+    "2026-03-18",
+    "2026-04-29",
+    "2026-06-17",
+    "2026-07-29",
+    "2026-09-16",
+    "2026-10-28",
+    "2026-12-09",
+]
+
+FOMC_SEP_DATES_2026 = [
+    "2026-03-18",
+    "2026-06-17",
+    "2026-09-16",
+    "2026-12-09",
 ]

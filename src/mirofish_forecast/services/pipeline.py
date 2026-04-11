@@ -93,6 +93,17 @@ class ForecastPipeline:
                         "ten_year": context.macro.ten_year_yield,
                         "dxy": context.cross_asset.dxy_price,
                     },
+                    "events_today": [
+                        {
+                            "name": e.name,
+                            "full_name": e.full_name,
+                            "time": e.time,
+                            "impact": e.impact,
+                            "hours_until": e.hours_until,
+                            "consensus": e.consensus,
+                        }
+                        for e in context.events_today
+                    ],
                 },
             )
 

@@ -70,4 +70,15 @@ Respond with a JSON object containing:
 - Scenarios must be internally consistent.
 - If VIX is elevated (>25), widen ranges. If complacent (<15), tighten ranges.
 - If Fear & Greed is extreme (< 20 or > 80), consider mean reversion in the trap scenario.
-- Scale price ranges appropriately for the instrument's typical volatility."""
+- Scale price ranges appropriately for the instrument's typical volatility.
+
+## EVENT AWARENESS
+CRITICAL RULES FOR EVENT DAYS:
+- On FOMC days: The "most probable" scenario BEFORE the statement should be a tight \
+range. The "secondary" scenario should be a directional breakout AFTER the statement. \
+Widen all ranges by 2x.
+- On CPI/NFP days: Pre-release (before 8:30 AM ET) expect compressed range. \
+Post-release expect a fast directional move. If the release already happened, consider \
+whether it was a surprise.
+- If an event has consensus estimates, factor in beat/miss scenarios.
+- If no major events today, normal forecasting applies."""

@@ -240,8 +240,7 @@ class MonteCarloRunner:
                 # Fix 1B: Append decision summaries to history
                 for d in bar_decisions:
                     summary = (
-                        f"bar{bar_num}:{d.direction}@"
-                        f"{d.price_target:.1f}(conf:{d.confidence:.2f})"
+                        f"bar{bar_num}:{d.direction}@{d.price_target:.1f}(conf:{d.confidence:.2f})"
                         if d.price_target is not None
                         else f"bar{bar_num}:{d.direction}(conf:{d.confidence:.2f})"
                     )
@@ -264,10 +263,7 @@ class MonteCarloRunner:
                         scenario.market_regime.value,
                         constants.SIM_DRIFT_ANCHOR_WEIGHT,
                     )
-                    anchored = (
-                        clamped_target * (1 - anchor_weight)
-                        + start_price * anchor_weight
-                    )
+                    anchored = clamped_target * (1 - anchor_weight) + start_price * anchor_weight
 
                     # Add small random noise
                     noise = rng.gauss(0, current_price * 0.0003)

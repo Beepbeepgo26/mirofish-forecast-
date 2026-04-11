@@ -51,6 +51,13 @@ Market makers think in terms of inventory, hedging flows, and microstructure. Fr
 
 Use precise, quantitative language. Focus on flow mechanics, not directional conviction.
 
+## EVENT CONTEXT
+Include any scheduled economic events in EACH agent's context block:
+- Institutional agents should lead with event implications for macro positioning
+- Retail agents should get a simple headline: "FOMC today at 2 PM — expect big moves"
+- Market makers should get timing: "CPI at 8:30 AM — widen spreads pre-release, \
+expect volume spike post"
+
 ## OUTPUT FORMAT
 Respond with a JSON object containing exactly three keys: "institutional", "retail", \
 "market_maker". Each value is an object with "context" (string) and "priority_signals" \

@@ -199,6 +199,23 @@ class ForecastSynthesizer:
         inst_config = get_instrument_config(scenario.instrument)
         instrument_name = inst_config["name"]
 
+        # Build events context
+        events_context = ""
+        if hasattr(context, "events_today") and context.events_today:
+            event_lines = []
+            for e in context.events_today:
+                line = f"- {e.time or 'TBD'}: {e.full_name} ({e.impact.upper()})"
+                if e.consensus:
+                    line += f" — Expected: {e.consensus}"
+                    if e.prior:
+                        line += f", Prior: {e.prior}"
+                if e.hours_until is not None and e.hours_until < 0:
+                    line += " [ALREADY RELEASED]"
+                event_lines.append(line)
+            events_context = "Today's events:\n" + "\n".join(event_lines)
+        else:
+            events_context = "No major economic events scheduled today."
+
         prompt = SYNTHESIZE_FORECAST_SYSTEM_PROMPT.format(
             num_simulations=num_simulations,
             instrument_name=instrument_name,
@@ -220,6 +237,7 @@ class ForecastSynthesizer:
             retail_summary=retail_reasoning[:300],
             market_maker_summary=mm_reasoning[:300],
             session_context=session_context,
+            events_context=events_context,
         )
 
         try:

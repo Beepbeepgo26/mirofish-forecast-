@@ -5,6 +5,7 @@ from mirofish_forecast.config import constants
 from mirofish_forecast.config.constants import get_instrument_config
 from mirofish_forecast.config.settings import Settings
 from mirofish_forecast.data.cache import CacheClient
+from mirofish_forecast.data.economic_calendar import EconomicCalendarClient
 from mirofish_forecast.data.fear_greed_client import FearGreedClient
 from mirofish_forecast.data.fred_client import FredClient
 from mirofish_forecast.data.ib_client import IBClient
@@ -25,6 +26,7 @@ class DataAggregator:
         self._fear_greed = FearGreedClient(self._cache)
         self._yfinance = YFinanceClient(self._cache)
         self._ib = IBClient(settings, self._cache)
+        self._calendar = EconomicCalendarClient(settings, self._cache)
 
     def get_market_context(self) -> MarketContext:
         """Pull from all sources and assemble MarketContext.
@@ -39,12 +41,23 @@ class DataAggregator:
         fear_greed = self._fear_greed.get_fear_greed()
         internals = self._ib.get_market_internals()
 
+        # Pull economic calendar events
+        try:
+            events_today = self._calendar.get_events_today()
+            events_week = self._calendar.get_events_this_week()
+        except Exception:
+            logger.warning("Calendar fetch failed", exc_info=True)
+            events_today = []
+            events_week = []
+
         context = MarketContext(
             macro=macro,
             vix=vix,
             cross_asset=cross_asset,
             fear_greed=fear_greed,
             internals=internals,
+            events_today=events_today,
+            events_this_week=events_week,
             assembled_at=datetime.utcnow(),
         )
 

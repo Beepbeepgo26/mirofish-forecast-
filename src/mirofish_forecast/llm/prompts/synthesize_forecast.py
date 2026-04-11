@@ -30,6 +30,13 @@ Direction probabilities:
 
 {session_context}
 
+## ECONOMIC EVENTS
+{events_context}
+
+If a high-impact event is scheduled during the forecast horizon, your forecast MUST \
+acknowledge it. Do not predict a "tight range" if FOMC, CPI, or NFP releases during \
+the forecast period.
+
 ## AGENT CONSENSUS
 Institutional view: {institutional_summary}
 Retail view: {retail_summary}

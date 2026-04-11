@@ -112,6 +112,59 @@ class ScenarioBuilder:
         return price
 
     # ---------------------------------------------------------------
+    # Event context formatting
+    # ---------------------------------------------------------------
+
+    def _format_events_for_context(self, context: MarketContext) -> str:
+        """Format economic events into a text block for agent prompts."""
+        if not context.events_today and not context.events_this_week:
+            return "No major economic events scheduled today or this week."
+
+        lines: list[str] = []
+        if context.events_today:
+            lines.append("=== TODAY'S EVENTS ===")
+            for e in context.events_today:
+                status = ""
+                if e.hours_until is not None:
+                    if e.hours_until < 0:
+                        status = " [ALREADY RELEASED]"
+                    elif e.hours_until < 1:
+                        mins = int(e.hours_until * 60)
+                        status = f" [IN {mins} MINUTES — IMMINENT]"
+                    else:
+                        status = f" [in {e.hours_until:.1f} hours]"
+
+                consensus_str = ""
+                if e.consensus:
+                    consensus_str = f" — Consensus: {e.consensus}"
+                    if e.prior:
+                        consensus_str += f", Prior: {e.prior}"
+
+                impact_label = e.impact.upper()
+                lines.append(
+                    f"  {e.time or 'TBD'}: {e.full_name} ({impact_label}){status}{consensus_str}"
+                )
+
+                if e.name == "FOMC":
+                    if e.has_sep:
+                        lines.append("    ⚠ Includes dot plot — expect elevated volatility")
+                    lines.append(
+                        "    ⚠ FOMC days: compressed range BEFORE statement, explosion AFTER"
+                    )
+
+        if context.events_this_week:
+            upcoming = [e for e in context.events_this_week if not e.is_today]
+            if upcoming:
+                lines.append("")
+                lines.append("=== LATER THIS WEEK ===")
+                for e in upcoming:
+                    lines.append(
+                        f"  {e.date} {e.time or 'TBD'}: {e.full_name} ({e.impact.upper()})"
+                    )
+
+        return "\n".join(lines) if lines else "No major events scheduled."
+
+    # ---------------------------------------------------------------
     # Context block generation
     # ---------------------------------------------------------------
 
@@ -136,11 +189,14 @@ class ScenarioBuilder:
             "{instrument_name}", inst_config["name"]
         ).replace("{instrument}", query.instrument)
 
+        events_text = self._format_events_for_context(context)
+
         parsed: ParsedContextBlocks = self._llm.parse_structured(
             system_prompt=system_prompt,
             user_message=(
                 f"Instrument: {inst_config['name']} ({query.instrument})\n"
                 f"Key drivers: {inst_config['key_drivers']}\n\n"
+                f"Scheduled Economic Events:\n{events_text}\n\n"
                 f"Current market data:\n{context_json}"
             ),
             response_format=ParsedContextBlocks,
@@ -211,10 +267,7 @@ class ScenarioBuilder:
             priority_signals=self._infer_retail_signals(context),
         )
 
-        has_internals = (
-            context.internals is not None and
-            context.internals.nyse_tick is not None
-        )
+        has_internals = context.internals is not None and context.internals.nyse_tick is not None
 
         if has_internals:
             mm_context_text = build_market_maker_context_template(
@@ -256,6 +309,8 @@ class ScenarioBuilder:
         """Use GPT-4o to generate ranked scenarios."""
         inst_config = get_instrument_config(query.instrument)
 
+        events_text = self._format_events_for_context(context)
+
         user_message = (
             f"Forecast query: {query.raw_query}\n"
             f"Instrument: {query.instrument} ({inst_config['name']})\n"
@@ -263,6 +318,7 @@ class ScenarioBuilder:
             f"Horizon: {query.forecast_horizon_minutes} minutes\n"
             f"Direction bias: {query.direction_bias or 'none stated'}\n"
             f"Event mention: {query.mentions_event or 'none'}\n\n"
+            f"Scheduled Economic Events:\n{events_text}\n\n"
             f"Current market data:\n{context.model_dump_json()}"
         )
 

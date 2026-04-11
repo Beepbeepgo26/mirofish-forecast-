@@ -9,6 +9,7 @@ from mirofish_forecast.models.forecast import (
 )
 from mirofish_forecast.models.market import (
     CrossAssetSnapshot,
+    EconomicEvent,
     FearGreedData,
     MacroIndicators,
     MarketContext,
@@ -41,6 +42,7 @@ __all__ = [
     "ProbabilityDistribution",
     "SimulationResult",
     "CrossAssetSnapshot",
+    "EconomicEvent",
     "FearGreedData",
     "MacroIndicators",
     "MarketContext",
