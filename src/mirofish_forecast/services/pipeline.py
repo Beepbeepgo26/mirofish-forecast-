@@ -140,6 +140,7 @@ class ForecastPipeline:
                 scenario=scenario,
                 sim_count=query.sim_count,
                 progress_callback=progress_callback,
+                session=session,
             )
 
             success_count = sum(1 for r in sim_results if r.success)

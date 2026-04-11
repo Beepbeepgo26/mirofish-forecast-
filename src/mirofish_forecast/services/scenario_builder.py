@@ -211,16 +211,30 @@ class ScenarioBuilder:
             priority_signals=self._infer_retail_signals(context),
         )
 
-        market_maker = AgentContextBlock(
-            agent_type="market_maker",
-            context_text=build_market_maker_context_template(
+        has_internals = (
+            context.internals is not None and
+            context.internals.nyse_tick is not None
+        )
+
+        if has_internals:
+            mm_context_text = build_market_maker_context_template(
                 instrument=instrument,
                 nyse_tick=context.internals.nyse_tick,
                 nyse_add=context.internals.nyse_add,
                 nyse_vold=context.internals.nyse_vold,
                 vix_spot=context.vix.spot,
                 es_price=current_price,
-            ),
+            )
+        else:
+            mm_context_text = (
+                f"Market internals: unavailable (IB relay not configured)\n"
+                f"VIX: {context.vix.spot}\n"
+                f"Price: {current_price}"
+            )
+
+        market_maker = AgentContextBlock(
+            agent_type="market_maker",
+            context_text=mm_context_text,
             priority_signals=self._infer_mm_signals(context),
         )
 

@@ -13,6 +13,8 @@ Current price: {current_price}
 Bar {bar_number} of {total_bars} in a {horizon_minutes}-minute forecast horizon.
 
 Previous bar prices: {price_history}
+Prior decisions: {prior_decisions}
+{session_context}
 
 Scenario being tested: {scenario_name} — {scenario_description}
 

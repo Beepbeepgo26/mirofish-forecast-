@@ -26,6 +26,7 @@ from mirofish_forecast.config.settings import Settings
 from mirofish_forecast.llm.prompts.agent_decision import AGENT_DECISION_SYSTEM_PROMPT
 from mirofish_forecast.models.forecast import AgentDecision, SimulationResult
 from mirofish_forecast.models.scenario import SimulationScenario
+from mirofish_forecast.services.session_context import SessionInfo
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ class MonteCarloRunner:
         scenario: SimulationScenario,
         sim_count: int,
         progress_callback: Callable[[int, int], None] | None = None,
+        session: SessionInfo | None = None,
     ) -> list[SimulationResult]:
         """Run Monte Carlo simulations. Blocks until all complete.
 
@@ -52,6 +54,7 @@ class MonteCarloRunner:
             scenario: The simulation scenario from the scenario builder
             sim_count: Number of simulations to run (100–500)
             progress_callback: Called with (completed_count, total_count) after each sim
+            session: Current market session info (optional)
 
         Returns:
             List of SimulationResult objects
@@ -67,21 +70,26 @@ class MonteCarloRunner:
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(self._run_in_new_loop, scenario, sim_count, progress_callback)
+                future = pool.submit(
+                    self._run_in_new_loop, scenario, sim_count, progress_callback, session
+                )
                 return future.result()
         else:
-            return self._run_in_new_loop(scenario, sim_count, progress_callback)
+            return self._run_in_new_loop(scenario, sim_count, progress_callback, session)
 
     def _run_in_new_loop(
         self,
         scenario: SimulationScenario,
         sim_count: int,
         progress_callback: Callable[[int, int], None] | None,
+        session: SessionInfo | None = None,
     ) -> list[SimulationResult]:
         """Run async simulations in a fresh event loop."""
         loop = asyncio.new_event_loop()
         try:
-            return loop.run_until_complete(self._run_async(scenario, sim_count, progress_callback))
+            return loop.run_until_complete(
+                self._run_async(scenario, sim_count, progress_callback, session)
+            )
         finally:
             loop.close()
 
@@ -90,6 +98,7 @@ class MonteCarloRunner:
         scenario: SimulationScenario,
         sim_count: int,
         progress_callback: Callable[[int, int], None] | None,
+        session: SessionInfo | None = None,
     ) -> list[SimulationResult]:
         """Async core — manages semaphores and wave-based batching."""
         sim_semaphore = asyncio.Semaphore(constants.SIM_CONCURRENCY)
@@ -101,7 +110,9 @@ class MonteCarloRunner:
         async def run_one(sim_id: int) -> SimulationResult:
             nonlocal completed
             async with sim_semaphore:
-                result = await self._run_single_simulation(sim_id, scenario, api_semaphore)
+                result = await self._run_single_simulation(
+                    sim_id, scenario, api_semaphore, session=session
+                )
                 async with lock:
                     completed += 1
                     results.append(result)
@@ -128,6 +139,7 @@ class MonteCarloRunner:
         sim_id: int,
         scenario: SimulationScenario,
         api_semaphore: asyncio.Semaphore,
+        session: SessionInfo | None = None,
     ) -> SimulationResult:
         """Run one full simulation across all bars."""
         from mirofish_forecast.config.constants import get_instrument_config
@@ -147,8 +159,22 @@ class MonteCarloRunner:
         # Pick a scenario to test (weighted by probability)
         active_scenario = self._pick_scenario(scenario, rng)
 
+        # Fix 1B: Agent decision history across bars
+        decision_history: dict[str, list[str]] = {
+            t: [] for t in ["institutional", "retail", "market_maker"]
+        }
+
         try:
             for bar_num in range(constants.SIM_BARS_PER_HORIZON):
+                # Opt 2E: Pre-compute price_history_str per bar
+                price_history_str = ", ".join(f"{p:.2f}" for p in price_path[-5:])
+
+                # Build prior_decisions strings for each agent (last 5 entries)
+                prior_decisions = {
+                    t: "; ".join(decision_history[t][-5:]) or "None (first bar)"
+                    for t in ["institutional", "retail", "market_maker"]
+                }
+
                 # All 3 agents decide concurrently
                 decisions = await asyncio.gather(
                     self._agent_decision(
@@ -163,6 +189,9 @@ class MonteCarloRunner:
                         temperature,
                         api_semaphore,
                         instrument=scenario.instrument,
+                        prior_decisions=prior_decisions["institutional"],
+                        session=session,
+                        price_history_str=price_history_str,
                     ),
                     self._agent_decision(
                         "retail",
@@ -176,6 +205,9 @@ class MonteCarloRunner:
                         temperature,
                         api_semaphore,
                         instrument=scenario.instrument,
+                        prior_decisions=prior_decisions["retail"],
+                        session=session,
+                        price_history_str=price_history_str,
                     ),
                     self._agent_decision(
                         "market_maker",
@@ -189,6 +221,9 @@ class MonteCarloRunner:
                         temperature,
                         api_semaphore,
                         instrument=scenario.instrument,
+                        prior_decisions=prior_decisions["market_maker"],
+                        session=session,
+                        price_history_str=price_history_str,
                     ),
                     return_exceptions=True,
                 )
@@ -202,6 +237,16 @@ class MonteCarloRunner:
                         if d.price_target is not None:
                             valid_targets.append(d.price_target)
 
+                # Fix 1B: Append decision summaries to history
+                for d in bar_decisions:
+                    summary = (
+                        f"bar{bar_num}:{d.direction}@"
+                        f"{d.price_target:.1f}(conf:{d.confidence:.2f})"
+                        if d.price_target is not None
+                        else f"bar{bar_num}:{d.direction}(conf:{d.confidence:.2f})"
+                    )
+                    decision_history[d.agent_type].append(summary)
+
                 # Update price: weighted average of agent targets + noise + drift anchoring
                 if valid_targets:
                     avg_target = sum(valid_targets) / len(valid_targets)
@@ -213,11 +258,15 @@ class MonteCarloRunner:
                         min(current_price + max_move, avg_target),
                     )
 
-                    # Drift anchor: blend toward starting price — instrument-specific
+                    # Drift anchor: blend toward starting price — regime-conditional
                     start_price = price_path[0]
+                    anchor_weight = constants.REGIME_ANCHOR_WEIGHTS.get(
+                        scenario.market_regime.value,
+                        constants.SIM_DRIFT_ANCHOR_WEIGHT,
+                    )
                     anchored = (
-                        clamped_target * (1 - inst_config["drift_anchor_weight"])
-                        + start_price * inst_config["drift_anchor_weight"]
+                        clamped_target * (1 - anchor_weight)
+                        + start_price * anchor_weight
                     )
 
                     # Add small random noise
@@ -244,12 +293,15 @@ class MonteCarloRunner:
                 else 0.5
             )
 
+            # Opt 2B: final_price is all synthesis uses
+            final_price = price_path[-1]
+
             return SimulationResult(
                 sim_id=sim_id,
                 seed=seed,
                 temperature=temperature,
-                final_price=current_price,
-                price_path=price_path,
+                final_price=final_price,
+                price_path=[],  # path not needed downstream — final_price is all synthesis uses
                 agent_decisions=all_decisions,
                 direction_consensus=direction_consensus,
                 confidence_mean=round(confidence_mean, 3),
@@ -318,11 +370,23 @@ class MonteCarloRunner:
         temperature: float,
         api_semaphore: asyncio.Semaphore,
         instrument: str = "ES",
+        prior_decisions: str = "",
+        session: SessionInfo | None = None,
+        price_history_str: str = "",
     ) -> AgentDecision:
         """Get a single agent's decision for one bar."""
         from mirofish_forecast.config.constants import get_instrument_config
 
         inst_config = get_instrument_config(instrument)
+
+        # Fix 1C: Build session context string
+        session_ctx = ""
+        if session:
+            session_ctx = (
+                f"Session: {session.session_label} | "
+                f"Phase: {session.session_phase if hasattr(session, 'session_phase') else session.session_type} | "
+                f"Minutes to close: {session.minutes_to_rth_close}"
+            )
 
         prompt = AGENT_DECISION_SYSTEM_PROMPT.format(
             agent_type=agent_type,
@@ -332,11 +396,13 @@ class MonteCarloRunner:
             total_bars=constants.SIM_BARS_PER_HORIZON,
             horizon_minutes=horizon_minutes,
             minutes_per_bar=round(minutes_per_bar, 1),
-            price_history=", ".join(f"{p:.2f}" for p in price_path[-5:]),
+            price_history=price_history_str or ", ".join(f"{p:.2f}" for p in price_path[-5:]),
             scenario_name=active_scenario["name"],
             scenario_description=active_scenario["description"],
             instrument_name=inst_config["name"],
             instrument_price_guidance=self._get_price_guidance(instrument, current_price),
+            prior_decisions=prior_decisions or "None (first bar)",
+            session_context=session_ctx,
         )
 
         async with api_semaphore:

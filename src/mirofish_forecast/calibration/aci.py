@@ -9,6 +9,7 @@ shifts over time (regime changes, vol shifts).
 """
 
 import logging
+from collections import deque
 
 from mirofish_forecast.config import constants
 
@@ -20,7 +21,7 @@ class ACITracker:
 
     def __init__(self) -> None:
         self._alpha = constants.ACI_INITIAL_ALPHA
-        self._history: list[dict] = []  # Recent coverage observations
+        self._history: deque[dict] = deque(maxlen=500)
 
     @property
     def current_alpha(self) -> float:
@@ -56,10 +57,6 @@ class ACITracker:
             }
         )
 
-        # Keep only last 500 observations
-        if len(self._history) > 500:
-            self._history = self._history[-500:]
-
         logger.debug(f"ACI update: covered={was_covered}, alpha={self._alpha:.4f}")
         return self._alpha
 
@@ -67,7 +64,7 @@ class ACITracker:
         """Compute observed coverage over the last N forecasts."""
         if not self._history:
             return 0.0
-        recent = self._history[-window:]
+        recent = list(self._history)[-window:]
         return sum(1 for h in recent if h["was_covered"]) / len(recent)
 
     def get_interval_multiplier(self) -> float:

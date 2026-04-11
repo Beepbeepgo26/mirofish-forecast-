@@ -9,6 +9,7 @@ import time
 from datetime import datetime
 
 from mirofish_forecast.config import constants
+from mirofish_forecast.config.constants import get_instrument_config
 from mirofish_forecast.config.settings import Settings
 from mirofish_forecast.llm.client import LLMClient
 from mirofish_forecast.llm.prompts.synthesize_forecast import (
@@ -195,8 +196,12 @@ class ForecastSynthesizer:
                 "closed.\n"
             )
 
+        inst_config = get_instrument_config(scenario.instrument)
+        instrument_name = inst_config["name"]
+
         prompt = SYNTHESIZE_FORECAST_SYSTEM_PROMPT.format(
             num_simulations=num_simulations,
+            instrument_name=instrument_name,
             current_price=scenario.current_price,
             horizon_minutes=scenario.forecast_horizon_minutes,
             median=distribution.median,

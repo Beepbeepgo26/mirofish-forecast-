@@ -2,10 +2,10 @@
 
 SYNTHESIZE_FORECAST_SYSTEM_PROMPT = """\
 You are a professional market analyst writing a forecast summary for a trader. You have \
-the results of {num_simulations} Monte Carlo simulations of ES (E-mini S&P 500) futures.
+the results of {num_simulations} Monte Carlo simulations of {instrument_name} futures.
 
 ## SIMULATION RESULTS
-Current ES price: {current_price}
+Current {instrument_name} price: {current_price}
 Forecast horizon: {horizon_minutes} minutes
 
 Probability distribution:
