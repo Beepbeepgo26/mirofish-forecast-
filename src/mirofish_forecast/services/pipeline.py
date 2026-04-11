@@ -2,6 +2,7 @@
 
 import json
 import logging
+import threading
 import time
 from datetime import datetime
 from queue import Queue
@@ -14,6 +15,7 @@ from mirofish_forecast.services.data_aggregator import DataAggregator
 from mirofish_forecast.services.forecast_synthesizer import ForecastSynthesizer
 from mirofish_forecast.services.nlp_parser import NLPParser
 from mirofish_forecast.services.scenario_builder import ScenarioBuilder
+from mirofish_forecast.services.session_context import get_session_info
 from mirofish_forecast.services.simulation_runner import MonteCarloRunner
 
 logger = logging.getLogger(__name__)
@@ -25,15 +27,25 @@ class ForecastPipeline:
     Stages: parsing → data_collection → scenario_building → simulation → synthesis → complete
     """
 
-    def __init__(self, settings: Settings, event_queue: Queue) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        event_queue: Queue,
+        cancel_event: threading.Event | None = None,
+    ) -> None:
         self._settings = settings
         self._queue = event_queue
+        self._cancel_event = cancel_event or threading.Event()
         self._parser = NLPParser(settings)
         self._aggregator = DataAggregator(settings)
         self._scenario_builder = ScenarioBuilder(settings)
         self._simulation_runner = MonteCarloRunner(settings)
         self._synthesizer = ForecastSynthesizer(settings)
         self._tracker = ForecastTracker(settings)
+
+    def _is_cancelled(self) -> bool:
+        """Check if the pipeline has been cancelled."""
+        return self._cancel_event.is_set()
 
     def run(
         self,
@@ -46,7 +58,13 @@ class ForecastPipeline:
         pipeline_start = time.time()
 
         try:
+            # Get session context
+            session = get_session_info()
+
             # Stage 1: Parse the query
+            if self._is_cancelled():
+                self._emit_cancel()
+                return
             self._emit_stage(constants.STAGE_PARSING)
             query = self._parser.parse(raw_query, sim_preset, sim_count)
             self._emit_stage_complete(
@@ -57,6 +75,9 @@ class ForecastPipeline:
             )
 
             # Stage 2: Pull market data
+            if self._is_cancelled():
+                self._emit_cancel()
+                return
             self._emit_stage(constants.STAGE_DATA_COLLECTION)
             context = self._aggregator.get_market_context()
             self._emit_stage_complete(
@@ -76,6 +97,9 @@ class ForecastPipeline:
             )
 
             # Stage 3: Build scenarios
+            if self._is_cancelled():
+                self._emit_cancel()
+                return
             self._emit_stage(constants.STAGE_SCENARIO_BUILDING)
             scenario = self._scenario_builder.build(query, context)
             self._emit_stage_complete(
@@ -94,6 +118,9 @@ class ForecastPipeline:
             )
 
             # Stage 4: Run Monte Carlo simulations
+            if self._is_cancelled():
+                self._emit_cancel()
+                return
             self._emit_stage(constants.STAGE_SIMULATION)
 
             def progress_callback(completed: int, total: int) -> None:
@@ -126,6 +153,9 @@ class ForecastPipeline:
             )
 
             # Stage 5: Synthesize forecast
+            if self._is_cancelled():
+                self._emit_cancel()
+                return
             self._emit_stage(constants.STAGE_SYNTHESIS)
             forecast = self._synthesizer.synthesize(
                 results=sim_results,
@@ -134,6 +164,7 @@ class ForecastPipeline:
                 forecast_id=forecast_id,
                 sim_preset=query.sim_preset.value,
                 pipeline_start_time=pipeline_start,
+                session_info=session,
             )
             self._emit_stage_complete(
                 constants.STAGE_SYNTHESIS,
@@ -150,7 +181,7 @@ class ForecastPipeline:
                 },
             )
 
-            # Track forecast for calibration (fire-and-forget, don't block pipeline)
+            # Track forecast for calibration (fire-and-forget)
             try:
                 vix_value = context.vix.spot or context.cross_asset.vix_price
                 fg_value = context.fear_greed.value
@@ -173,6 +204,13 @@ class ForecastPipeline:
                     "message": f"Forecast pipeline failed: {e}",
                 },
             )
+
+    def _emit_cancel(self) -> None:
+        """Emit a cancellation event."""
+        self._emit_event(
+            constants.STAGE_ERROR,
+            {"message": "Forecast cancelled", "cancelled": True},
+        )
 
     def _emit_stage(self, stage: str) -> None:
         """Emit a stage-started event."""

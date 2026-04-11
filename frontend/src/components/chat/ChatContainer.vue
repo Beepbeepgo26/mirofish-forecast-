@@ -8,7 +8,7 @@ import { useAutoScroll } from '@/composables/useAutoScroll'
 import { useForecastStore } from '@/stores/forecastStore'
 
 const store = useForecastStore()
-const { status, stages, result, error, startForecast } = useForecastStream()
+const { status, stages, result, error, startForecast, cancel } = useForecastStream()
 const scrollContainer = ref<HTMLElement | null>(null)
 const scrollTrigger = computed(() => [store.history.length, stages.value])
 const { onScroll, scrollToBottom } = useAutoScroll(scrollContainer, scrollTrigger)
@@ -50,7 +50,7 @@ watch(error, (val) => {
           MiroFish <span class="text-[#2962FF]">Forecast</span>
         </div>
         <p class="text-[#6b7280] text-sm max-w-md">
-          Ask a question about ES futures. Try "Where will ES be in 2 hours?" or "What's the probability ES breaks 7000 today?"
+          Ask a question about ES, NQ, CL, or GC futures. Try "Where will ES be in 2 hours?" or "NQ forecast for Monday"
         </p>
       </div>
 
@@ -71,7 +71,9 @@ watch(error, (val) => {
     <!-- Input area -->
     <ChatInput
       :disabled="status === 'streaming' || status === 'starting'"
+      :is-streaming="status === 'streaming'"
       @submit="handleSubmit"
+      @cancel="cancel"
     />
   </div>
 </template>

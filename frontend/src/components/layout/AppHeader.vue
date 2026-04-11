@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SessionStatus from './SessionStatus.vue'
 </script>
 
 <template>
@@ -7,10 +8,11 @@
       <div class="text-lg font-semibold tracking-tight text-[#e5e7eb]">
         MiroFish <span class="text-[#2962FF]">Forecast</span>
       </div>
-      <div class="text-xs text-[#6b7280] font-mono">ES Futures</div>
+      <div class="text-xs text-[#6b7280] font-mono">Futures</div>
     </div>
-    <div class="flex items-center gap-4 text-xs text-[#6b7280]">
-      <span class="font-mono">v0.1.0</span>
+    <div class="flex items-center gap-4">
+      <SessionStatus />
+      <span class="text-xs font-mono text-[#6b7280]">v0.2.0</span>
     </div>
   </header>
 </template>

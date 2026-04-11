@@ -15,6 +15,10 @@ from mirofish_forecast.llm.client import LLMClient
 from mirofish_forecast.llm.prompts.parse_query import PARSE_QUERY_SYSTEM_PROMPT
 from mirofish_forecast.llm.schemas import ParsedForecastQuery
 from mirofish_forecast.models.query import ForecastQuery, QueryType, SimPreset
+from mirofish_forecast.services.session_context import (
+    get_session_info,
+    resolve_temporal_reference,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,20 +49,46 @@ class NLPParser:
         # Resolve simulation count from preset or custom value
         resolved_preset, resolved_count = self._resolve_sim_config(sim_preset, sim_count)
 
+        # Resolve temporal references (Monday, tomorrow, today, etc.)
+        temporal = resolve_temporal_reference(raw_query)
+        session = get_session_info()
+
         # Try regex extraction first
         regex_result = self._try_regex_parse(raw_query)
         if regex_result is not None:
             logger.info(f"Query parsed via regex: instrument={regex_result.instrument}")
-            return regex_result.model_copy(
+            updates: dict = {
+                "sim_preset": resolved_preset,
+                "sim_count": resolved_count,
+            }
+            if temporal["horizon_minutes"] is not None:
+                updates["forecast_horizon_minutes"] = temporal["horizon_minutes"]
+                updates["additional_context"] = temporal["session_label"]
+            return regex_result.model_copy(update=updates)
+
+        # Fall back to LLM — inject session context into the query
+        logger.info("Regex parse insufficient, falling back to LLM")
+        enriched_query = raw_query
+        if not session.is_rth_open:
+            enriched_query = (
+                f"{raw_query}\n\n"
+                f"[System context: Current time is {session.current_time_et}, "
+                f"{session.day_of_week}. Market status: {session.session_label}. "
+                f"Next RTH open: {session.next_rth_open or 'Unknown'}.]"
+            )
+
+        result = self._llm_parse(enriched_query, resolved_preset, resolved_count)
+
+        # Override horizon if temporal reference was detected
+        if temporal["horizon_minutes"] is not None:
+            result = result.model_copy(
                 update={
-                    "sim_preset": resolved_preset,
-                    "sim_count": resolved_count,
+                    "forecast_horizon_minutes": temporal["horizon_minutes"],
+                    "additional_context": temporal["session_label"],
                 }
             )
 
-        # Fall back to LLM
-        logger.info("Regex parse insufficient, falling back to LLM")
-        return self._llm_parse(raw_query, resolved_preset, resolved_count)
+        return result
 
     def _resolve_sim_config(self, preset: str, custom_count: int | None) -> tuple[SimPreset, int]:
         """Resolve simulation preset and count."""

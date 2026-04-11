@@ -28,6 +28,8 @@ Direction probabilities:
 ## MARKET CONTEXT
 {market_context_summary}
 
+{session_context}
+
 ## AGENT CONSENSUS
 Institutional view: {institutional_summary}
 Retail view: {retail_summary}

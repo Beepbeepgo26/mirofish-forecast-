@@ -44,6 +44,7 @@ class ForecastSynthesizer:
         forecast_id: str,
         sim_preset: str,
         pipeline_start_time: float,
+        session_info: object | None = None,
     ) -> ForecastResult:
         """Aggregate simulation results and produce the final forecast.
 
@@ -54,6 +55,7 @@ class ForecastSynthesizer:
             forecast_id: Unique forecast identifier
             sim_preset: "quick", "standard", "deep", "custom"
             pipeline_start_time: time.time() when pipeline started
+            session_info: Current market session info (optional)
 
         Returns:
             ForecastResult with forecast text, distribution, and metadata
@@ -119,6 +121,7 @@ class ForecastSynthesizer:
             inst_reasoning=inst_reasoning,
             retail_reasoning=retail_reasoning,
             mm_reasoning=mm_reasoning,
+            session_info=session_info,
         )
 
         duration = round(time.time() - pipeline_start_time, 1)
@@ -149,6 +152,7 @@ class ForecastSynthesizer:
         inst_reasoning: str,
         retail_reasoning: str,
         mm_reasoning: str,
+        session_info: object | None = None,
     ) -> str:
         """Use GPT-4o to generate the plain-English forecast."""
         # Build scenario summary
@@ -171,6 +175,26 @@ class ForecastSynthesizer:
             f" DXY: {context.cross_asset.dxy_price}"
         )
 
+        # Build session context
+        session_context = ""
+        if session_info:
+            si = session_info
+            session_context = (
+                "\n## SESSION CONTEXT\n"
+                f"Current time: {si.current_time_et} ({si.day_of_week})\n"
+                f"Market status: {si.session_label}\n"
+            )
+            if not si.is_rth_open and si.next_rth_open:
+                session_context += f"Next RTH open: {si.next_rth_open}\n"
+            session_context += (
+                "\nIMPORTANT: If the market is currently closed, "
+                "frame your forecast in terms of the next trading "
+                "session, NOT 'the next X minutes'. For example, "
+                "say 'For Monday's RTH session...' instead of "
+                "'over the next 120 minutes...' when markets are "
+                "closed.\n"
+            )
+
         prompt = SYNTHESIZE_FORECAST_SYSTEM_PROMPT.format(
             num_simulations=num_simulations,
             current_price=scenario.current_price,
@@ -190,6 +214,7 @@ class ForecastSynthesizer:
             institutional_summary=inst_reasoning[:300],
             retail_summary=retail_reasoning[:300],
             market_maker_summary=mm_reasoning[:300],
+            session_context=session_context,
         )
 
         try:

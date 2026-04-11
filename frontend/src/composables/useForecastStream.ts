@@ -28,6 +28,7 @@ export function useForecastStream() {
   const stages = ref<StageInfo[]>([])
   const result = shallowRef<ForecastResult | null>(null)
   const error = ref<string | null>(null)
+  const forecastId = ref<string | null>(null)
   let eventSource: EventSource | null = null
 
   function _initStages() {
@@ -73,6 +74,7 @@ export function useForecastStream() {
     status.value = 'starting'
     result.value = null
     error.value = null
+    forecastId.value = null
     _initStages()
 
     try {
@@ -90,7 +92,8 @@ export function useForecastStream() {
         throw new Error(err.error || `HTTP ${response.status}`)
       }
 
-      const { stream_url } = await response.json()
+      const { stream_url, forecast_id } = await response.json()
+      forecastId.value = forecast_id
       status.value = 'streaming'
 
       eventSource = new EventSource(stream_url)
@@ -127,17 +130,32 @@ export function useForecastStream() {
     }
   }
 
+  async function cancel() {
+    if (forecastId.value && (status.value === 'streaming' || status.value === 'starting')) {
+      try {
+        await fetch(`/api/forecast/cancel/${forecastId.value}`, { method: 'POST' })
+      } catch (e) {
+        console.error('Cancel request failed:', e)
+      }
+      eventSource?.close()
+      status.value = 'idle'
+      stages.value = []
+      error.value = 'Forecast cancelled'
+    }
+  }
+
   function reset() {
     eventSource?.close()
     status.value = 'idle'
     stages.value = []
     result.value = null
     error.value = null
+    forecastId.value = null
   }
 
   onUnmounted(() => {
     eventSource?.close()
   })
 
-  return { status, stages, result, error, startForecast, reset }
+  return { status, stages, result, error, startForecast, cancel, reset }
 }

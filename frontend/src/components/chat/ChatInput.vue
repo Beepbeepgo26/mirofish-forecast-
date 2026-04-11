@@ -3,8 +3,8 @@ import { ref } from 'vue'
 import { useForecastStore } from '@/stores/forecastStore'
 import { SIM_PRESETS, type SimPreset } from '@/types/forecast'
 
-const props = defineProps<{ disabled: boolean }>()
-const emit = defineEmits<{ submit: [query: string] }>()
+const props = defineProps<{ disabled: boolean; isStreaming: boolean }>()
+const emit = defineEmits<{ submit: [query: string]; cancel: [] }>()
 const store = useForecastStore()
 const query = ref('')
 
@@ -75,16 +75,27 @@ const presets: SimPreset[] = ['quick', 'standard', 'deep']
         v-model="query"
         :disabled="disabled"
         rows="1"
-        placeholder="Ask about ES futures..."
+        placeholder="Ask about ES, NQ, CL, or GC futures..."
         class="flex-1 bg-[#1a1a24] border border-[#2e2e3e] rounded-lg px-4 py-2.5 text-sm text-[#e5e7eb] placeholder-[#6b7280] resize-none focus:outline-none focus:border-[#2962FF] transition-colors disabled:opacity-50"
         @keydown="handleKeydown"
       />
       <button
+        v-if="!props.isStreaming"
         :disabled="disabled || !query.trim()"
         class="px-4 py-2.5 bg-[#2962FF] text-white text-sm font-medium rounded-lg hover:bg-[#1d4ed8] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         @click="handleSubmit"
       >
-        {{ disabled ? '...' : 'Send' }}
+        Send
+      </button>
+      <button
+        v-else
+        class="px-4 py-2.5 bg-[#ef4444] text-white text-sm font-medium rounded-lg hover:bg-[#dc2626] transition-colors flex items-center gap-1.5"
+        @click="emit('cancel')"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <rect x="6" y="6" width="12" height="12" rx="1" />
+        </svg>
+        Stop
       </button>
     </div>
   </div>

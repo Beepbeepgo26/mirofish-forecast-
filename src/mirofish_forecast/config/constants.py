@@ -231,3 +231,35 @@ SUPPORTED_INSTRUMENTS = list(INSTRUMENT_CONFIG.keys())
 def get_instrument_config(instrument: str) -> dict:
     """Get config for an instrument, defaulting to ES if not found."""
     return INSTRUMENT_CONFIG.get(instrument.upper(), INSTRUMENT_CONFIG[DEFAULT_INSTRUMENT])
+
+
+# --- Market Session Awareness ---
+
+# ES RTH hours (Eastern Time)
+RTH_OPEN_HOUR = 9
+RTH_OPEN_MINUTE = 30
+RTH_CLOSE_HOUR = 16
+RTH_CLOSE_MINUTE = 0
+
+# Session classifications
+SESSION_RTH = "rth"
+SESSION_OVERNIGHT = "overnight"
+SESSION_CLOSED = "closed"
+SESSION_PRE_MARKET = "pre_market"
+SESSION_POST_MARKET = "post_market"
+
+# RTH duration in minutes
+RTH_DURATION_MINUTES = 390  # 6.5 hours
+
+# US market holidays 2026 (markets closed)
+US_MARKET_HOLIDAYS_2026 = [
+    "2026-01-01",  # New Year's Day
+    "2026-01-19",  # MLK Day
+    "2026-02-16",  # Presidents' Day
+    "2026-04-03",  # Good Friday
+    "2026-05-25",  # Memorial Day
+    "2026-07-03",  # Independence Day (observed)
+    "2026-09-07",  # Labor Day
+    "2026-11-26",  # Thanksgiving
+    "2026-12-25",  # Christmas
+]

@@ -2,6 +2,7 @@
 
 import json
 import logging
+import threading
 import uuid
 from datetime import datetime
 from queue import Empty, Queue
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 forecast_bp = Blueprint("forecast", __name__)
 
 # In-memory store for active forecast sessions
-# Key: forecast_id, Value: {"queue": Queue, "created_at": datetime}
+# Key: forecast_id, Value: {"queue": Queue, "created_at": datetime, "cancel_event": Event}
 _active_sessions: dict[str, dict] = {}
 
 
@@ -89,19 +90,21 @@ def start_forecast():
     if sim_preset not in ("quick", "standard", "deep"):
         sim_preset = constants.DEFAULT_SIM_PRESET
 
-    # Create session
+    # Create session with cancel event
     forecast_id = uuid.uuid4().hex[:12]
     event_queue: Queue = Queue()
+    cancel_event = threading.Event()
 
     _active_sessions[forecast_id] = {
         "queue": event_queue,
         "created_at": datetime.utcnow(),
         "query": raw_query,
+        "cancel_event": cancel_event,
     }
 
     # Launch pipeline in background thread
     settings = current_app.config["SETTINGS"]
-    pipeline = ForecastPipeline(settings, event_queue)
+    pipeline = ForecastPipeline(settings, event_queue, cancel_event=cancel_event)
 
     thread = Thread(
         target=pipeline.run,
@@ -166,6 +169,31 @@ def stream_forecast(forecast_id: str):
             "Access-Control-Allow-Origin": "*",
         },
     )
+
+
+@forecast_bp.route("/cancel/<forecast_id>", methods=["POST"])
+def cancel_forecast(forecast_id: str):
+    """POST /api/forecast/cancel/{forecast_id} — Cancel an in-progress forecast."""
+    session = _active_sessions.get(forecast_id)
+    if session is None:
+        return jsonify({"error": f"Forecast session {forecast_id} not found"}), 404
+
+    cancel_event = session.get("cancel_event")
+    if cancel_event:
+        cancel_event.set()
+        logger.info(f"Forecast cancelled: {forecast_id}")
+        return jsonify({"status": "cancelled", "forecast_id": forecast_id})
+
+    return jsonify({"error": "Session does not support cancellation"}), 400
+
+
+@forecast_bp.route("/session-info", methods=["GET"])
+def get_session_info_endpoint():
+    """GET /api/forecast/session-info — Get current market session status."""
+    from mirofish_forecast.services.session_context import get_session_info
+
+    info = get_session_info()
+    return jsonify(info.model_dump())
 
 
 @forecast_bp.route("/sessions", methods=["GET"])
