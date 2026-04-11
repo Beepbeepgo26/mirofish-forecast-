@@ -104,7 +104,7 @@ DEFAULT_SIM_PRESET = "standard"
 SIM_CONCURRENCY = 20  # Max concurrent simulations
 API_CONCURRENCY = 50  # Max concurrent LLM API calls across all sims
 WAVE_SIZE = 50  # Simulations per wave
-WAVE_PAUSE_SECONDS = 1.0  # Pause between waves to avoid rate limit bursts
+WAVE_PAUSE_SECONDS = 0.2   # semaphore already handles rate limiting; 1.0 was double-protection
 
 # Simulation parameters
 SIM_BARS_PER_HORIZON = 20  # Number of price bars to simulate per forecast
@@ -131,6 +131,18 @@ SYNTHESIS_TIMEOUT = 30
 # We allow up to 0.15% per bar to give agents room while preventing runaway drift
 SIM_MAX_BAR_MOVE_PCT = 0.0015  # 0.15% max move per bar (~10 pts on ES at 6800)
 SIM_DRIFT_ANCHOR_WEIGHT = 0.3  # 30% weight pulling price back toward starting price
+
+# Regime-conditional drift anchor weights — override SIM_DRIFT_ANCHOR_WEIGHT per regime
+REGIME_ANCHOR_WEIGHTS = {
+    "tight_range":     0.45,
+    "volatile_chop":   0.40,
+    "trending_up":     0.10,
+    "trending_down":   0.10,
+    "trend_day_up":    0.05,
+    "trend_day_down":  0.05,
+    "breakout":        0.15,
+    "breakdown":       0.15,
+}
 
 # --- Phase 5: Calibration ---
 

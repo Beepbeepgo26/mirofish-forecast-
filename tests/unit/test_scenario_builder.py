@@ -179,4 +179,4 @@ class TestContextBlockTemplates:
         scenario = builder.build(query, context)
 
         text = scenario.market_maker_context.context_text
-        assert "N/A" in text  # Should show N/A for missing data, not crash
+        assert "unavailable" in text  # Should indicate IB relay not configured, not crash
