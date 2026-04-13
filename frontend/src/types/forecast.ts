@@ -52,6 +52,29 @@ export interface ForecastResult {
 
 export type SimPreset = 'quick' | 'standard' | 'deep'
 
+export interface FastPathResult {
+  forecast_id: string
+  instrument: string
+  forecast_horizon_minutes: number
+  current_price: number
+  prob_up: number
+  prob_down: number
+  prob_flat: number
+  predicted_direction: string
+  direction_confidence: number
+  predicted_p5: number
+  predicted_p95: number
+  predicted_median: number
+  forecast_text: string
+  feature_count: number
+  model_trained_at: string | null
+  model_sample_size: number
+  inference_ms: number
+  pipeline_duration_seconds: number
+  created_at: string
+  build_method: 'fast_path'
+}
+
 export interface SimPresetConfig {
   label: string
   sims: number

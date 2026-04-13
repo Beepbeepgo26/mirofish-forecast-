@@ -354,3 +354,69 @@ FOMC_SEP_DATES_2026 = [
     "2026-09-16",
     "2026-12-09",
 ]
+
+# --- Phase 7: LightGBM Fast Path ---
+
+# Feature extraction
+FEATURE_OHLCV_LOOKBACK = 50  # Bars of history for feature computation
+FEATURE_VOL_WINDOW = 20  # Rolling window for realized vol
+FEATURE_MOMENTUM_WINDOWS = [1, 3, 6, 12]  # Bar lookbacks for returns
+
+# Model storage
+ML_MODEL_PREFIX = "ml"
+ML_DIRECTION_MODEL_KEY = "ml:direction_model"
+ML_QUANTILE_LOW_KEY = "ml:quantile_low_model"
+ML_QUANTILE_HIGH_KEY = "ml:quantile_high_model"
+ML_FEATURE_NAMES_KEY = "ml:feature_names"
+ML_MODEL_METADATA_KEY = "ml:model_metadata"
+ML_MODEL_TTL = 86400 * 30  # Models persist 30 days in Redis
+
+# Training
+ML_TRAINING_LOOKBACK_DAYS = 365
+ML_TRAINING_HORIZONS = [30, 60, 120, 240]
+ML_DEFAULT_HORIZON = 120
+ML_MIN_TRAINING_SAMPLES = 500
+ML_DIRECTION_FLAT_THRESHOLD = 0.001  # 0.1% = flat
+ML_TRAIN_STATUS_KEY = "ml:train_status"
+
+# LightGBM hyperparameters
+ML_LGBM_DIRECTION_PARAMS: dict = {
+    "objective": "multiclass",
+    "num_class": 3,
+    "num_leaves": 31,
+    "learning_rate": 0.05,
+    "n_estimators": 200,
+    "min_child_samples": 10,
+    "verbose": -1,
+}
+
+ML_LGBM_QUANTILE_LOW_PARAMS: dict = {
+    "objective": "quantile",
+    "alpha": 0.05,
+    "num_leaves": 31,
+    "learning_rate": 0.05,
+    "n_estimators": 150,
+    "min_child_samples": 10,
+    "verbose": -1,
+}
+
+ML_LGBM_QUANTILE_HIGH_PARAMS: dict = {
+    "objective": "quantile",
+    "alpha": 0.95,
+    "num_leaves": 31,
+    "learning_rate": 0.05,
+    "n_estimators": 150,
+    "min_child_samples": 10,
+    "verbose": -1,
+}
+
+# Fast path routing
+FAST_PATH_MAX_HORIZON = 240  # Max horizon for fast path (4hr)
+FAST_PATH_ELIGIBLE_QUERY_TYPES = [
+    "direction_forecast",
+    "point_forecast",
+]
+
+# Pipeline stage for fast path
+STAGE_FAST_INFERENCE = "fast_inference"
+STAGE_MESSAGES_FAST = "Running fast inference..."

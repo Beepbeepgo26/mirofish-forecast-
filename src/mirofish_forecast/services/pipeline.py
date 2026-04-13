@@ -8,9 +8,16 @@ from datetime import datetime
 from queue import Queue
 from typing import Any
 
+import yfinance as yf
+
 from mirofish_forecast.calibration.tracking import ForecastTracker
 from mirofish_forecast.config import constants
 from mirofish_forecast.config.settings import Settings
+from mirofish_forecast.ml.fast_path import FastPathRunner
+from mirofish_forecast.models.forecast import (
+    ForecastResult,
+    ProbabilityDistribution,
+)
 from mirofish_forecast.services.data_aggregator import DataAggregator
 from mirofish_forecast.services.forecast_synthesizer import ForecastSynthesizer
 from mirofish_forecast.services.nlp_parser import NLPParser
@@ -25,6 +32,7 @@ class ForecastPipeline:
     """Orchestrates the full forecast pipeline with SSE event streaming.
 
     Stages: parsing → data_collection → scenario_building → simulation → synthesis → complete
+    Fast path: parsing → data_collection → fast_inference → complete
     """
 
     def __init__(
@@ -42,6 +50,7 @@ class ForecastPipeline:
         self._simulation_runner = MonteCarloRunner(settings)
         self._synthesizer = ForecastSynthesizer(settings)
         self._tracker = ForecastTracker(settings)
+        self._fast_path = FastPathRunner(settings)
 
     def _is_cancelled(self) -> bool:
         """Check if the pipeline has been cancelled."""
@@ -53,8 +62,17 @@ class ForecastPipeline:
         forecast_id: str = "",
         sim_preset: str = "standard",
         sim_count: int | None = None,
+        path_override: str | None = None,
     ) -> None:
-        """Execute the full forecast pipeline. Runs in a background thread."""
+        """Execute the forecast pipeline. Runs in a background thread.
+
+        Args:
+            raw_query: Natural language query from the user
+            forecast_id: Unique forecast ID
+            sim_preset: Simulation tier preset
+            sim_count: Optional custom simulation count
+            path_override: "fast", "full", or None (auto-route)
+        """
         pipeline_start = time.time()
 
         try:
@@ -106,6 +124,20 @@ class ForecastPipeline:
                     ],
                 },
             )
+
+            # Route decision: fast path or full path?
+            use_fast_path = self._should_use_fast_path(query, path_override)
+
+            if use_fast_path and self._fast_path.is_available():
+                self._run_fast_path(
+                    context=context,
+                    query=query,
+                    forecast_id=forecast_id,
+                    pipeline_start=pipeline_start,
+                )
+                return
+
+            # ---- Full MC path (stages 3-5) ----
 
             # Stage 3: Build scenarios
             if self._is_cancelled():
@@ -216,6 +248,164 @@ class ForecastPipeline:
                     "message": f"Forecast pipeline failed: {e}",
                 },
             )
+
+    # ---- Fast path ----
+
+    def _run_fast_path(
+        self,
+        context: object,
+        query: object,
+        forecast_id: str,
+        pipeline_start: float,
+    ) -> None:
+        """Execute the fast path: features → LightGBM → synthesis."""
+        self._emit_event(
+            constants.STAGE_FAST_INFERENCE,
+            {
+                "message": "Running fast inference...",
+                "status": "started",
+            },
+        )
+
+        ohlcv_bars = self._fetch_ohlcv_bars(query.instrument)  # type: ignore[union-attr]
+
+        fast_result = self._fast_path.run(
+            context=context,  # type: ignore[arg-type]
+            ohlcv_bars=ohlcv_bars,
+            instrument=query.instrument,  # type: ignore[union-attr]
+            horizon_minutes=query.forecast_horizon_minutes,  # type: ignore[union-attr]
+            forecast_id=forecast_id,
+            pipeline_start_time=pipeline_start,
+        )
+
+        self._emit_event(
+            constants.STAGE_FAST_INFERENCE,
+            {
+                "message": "Fast inference complete",
+                "status": "completed",
+            },
+        )
+
+        self._emit_event(
+            constants.STAGE_COMPLETE,
+            {
+                "forecast": json.loads(fast_result.model_dump_json()),
+                "path": "fast",
+            },
+        )
+
+        # Track for calibration
+        if self._settings.calibration_enabled:
+            try:
+                tracking_forecast = ForecastResult(
+                    forecast_id=fast_result.forecast_id,
+                    instrument=fast_result.instrument,
+                    forecast_horizon_minutes=fast_result.forecast_horizon_minutes,
+                    current_price=fast_result.current_price,
+                    forecast_text=fast_result.forecast_text,
+                    distribution=ProbabilityDistribution(
+                        median=fast_result.predicted_median,
+                        mean=fast_result.predicted_median,
+                        std_dev=(fast_result.predicted_p95 - fast_result.predicted_p5) / 3.29,
+                        percentile_5=fast_result.predicted_p5,
+                        percentile_25=(fast_result.predicted_p5 + fast_result.predicted_median) / 2,
+                        percentile_75=(fast_result.predicted_median + fast_result.predicted_p95)
+                        / 2,
+                        percentile_95=fast_result.predicted_p95,
+                        skewness=0.0,
+                        prob_up=fast_result.prob_up,
+                        prob_down=fast_result.prob_down,
+                        prob_flat=fast_result.prob_flat,
+                    ),
+                    total_simulations=0,
+                    successful_simulations=0,
+                    sim_preset="fast",
+                    created_at=fast_result.created_at,
+                    pipeline_duration_seconds=fast_result.pipeline_duration_seconds,
+                    build_method="fast_path",
+                )
+                vix_value = context.vix.spot or context.cross_asset.vix_price  # type: ignore[union-attr]
+                fg_value = context.fear_greed.value  # type: ignore[union-attr]
+                self._tracker.store_forecast(
+                    forecast=tracking_forecast,
+                    vix_at_forecast=vix_value,
+                    fear_greed_at_forecast=fg_value,
+                )
+            except Exception:
+                logger.warning(
+                    "Failed to track fast path forecast",
+                    exc_info=True,
+                )
+
+    def _should_use_fast_path(
+        self,
+        query: object,
+        path_override: str | None = None,
+    ) -> bool:
+        """Decide whether to use the fast path for this query."""
+        if not self._settings.fast_path_enabled:
+            return False
+
+        if path_override == "fast":
+            return True
+        if path_override == "full":
+            return False
+
+        if not self._settings.fast_path_auto_route:
+            return False
+
+        eligible = constants.FAST_PATH_ELIGIBLE_QUERY_TYPES
+        if query.query_type.value not in eligible:  # type: ignore[union-attr]
+            return False
+
+        if (
+            query.forecast_horizon_minutes  # type: ignore[union-attr]
+            > constants.FAST_PATH_MAX_HORIZON
+        ):
+            return False
+
+        return True
+
+    def _fetch_ohlcv_bars(self, instrument: str) -> list[dict]:
+        """Fetch recent OHLCV bars for feature extraction."""
+        try:
+            config = constants.get_instrument_config(instrument)
+            ticker = config["yfinance_ticker"]
+
+            data = yf.download(
+                ticker,
+                period="5d",
+                interval="1h",
+                progress=False,
+            )
+
+            if data.empty:
+                return []
+
+            if hasattr(data.columns, "levels"):
+                data.columns = data.columns.get_level_values(0)
+
+            bars: list[dict] = []
+            for ts, row in data.tail(constants.FEATURE_OHLCV_LOOKBACK).iterrows():
+                bars.append(
+                    {
+                        "time": int(ts.timestamp()),
+                        "open": float(row["Open"]),
+                        "high": float(row["High"]),
+                        "low": float(row["Low"]),
+                        "close": float(row["Close"]),
+                        "volume": int(row.get("Volume", 0)),
+                    }
+                )
+            return bars
+        except Exception:
+            logger.warning(
+                f"Failed to fetch OHLCV for {instrument}",
+                exc_info=True,
+            )
+            return []
+
+    # ---- Event emission helpers ----
 
     def _emit_cancel(self) -> None:
         """Emit a cancellation event."""

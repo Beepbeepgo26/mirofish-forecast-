@@ -132,3 +132,39 @@ class ForecastTracking(MiroFishBaseModel):
     p90_hit: bool | None = None
     direction_correct: bool | None = None
     absolute_error: float | None = None
+
+
+class FastPathResult(MiroFishBaseModel):
+    """Result from the LightGBM fast path (no Monte Carlo)."""
+
+    forecast_id: str
+    instrument: str
+    forecast_horizon_minutes: int
+    current_price: float
+
+    # Direction probabilities from LightGBM classifier
+    prob_up: float
+    prob_down: float
+    prob_flat: float
+    predicted_direction: str  # "up", "down", "flat"
+    direction_confidence: float  # max(prob_up, prob_down, prob_flat)
+
+    # Price interval from quantile regressors
+    predicted_p5: float  # 5th percentile (lower bound)
+    predicted_p95: float  # 95th percentile (upper bound)
+    predicted_median: float
+
+    # Natural language forecast
+    forecast_text: str
+
+    # Metadata
+    feature_count: int
+    model_trained_at: str | None = None
+    model_sample_size: int = 0
+    inference_ms: float
+    pipeline_duration_seconds: float
+    created_at: datetime
+    build_method: str = "fast_path"
+
+    # Calibration (reuse Phase 5)
+    calibration: CalibrationMetrics = CalibrationMetrics()

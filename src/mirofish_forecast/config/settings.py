@@ -33,8 +33,15 @@ class Settings(BaseSettings):
     # App settings
     debug: bool = False
 
-    # GCS bucket for forecast tracking (reuse existing bucket)
+    # GCS bucket for forecast tracking
     gcs_bucket: str = "total-now-339022-mirofish-results"
+
+    # Fast path (Phase 7)
+    fast_path_enabled: bool = True
+    fast_path_auto_route: bool = True
+
+    # Calibration
+    calibration_enabled: bool = True
 
 
 @lru_cache(maxsize=1)

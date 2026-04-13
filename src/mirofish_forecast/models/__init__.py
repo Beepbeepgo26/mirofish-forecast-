@@ -2,6 +2,7 @@ from mirofish_forecast.models.base import MiroFishBaseModel
 from mirofish_forecast.models.forecast import (
     AgentDecision,
     CalibrationMetrics,
+    FastPathResult,
     ForecastResult,
     ForecastTracking,
     ProbabilityDistribution,
@@ -37,6 +38,7 @@ __all__ = [
     "MiroFishBaseModel",
     "AgentDecision",
     "CalibrationMetrics",
+    "FastPathResult",
     "ForecastResult",
     "ForecastTracking",
     "ProbabilityDistribution",

@@ -12,14 +12,26 @@ interface CalibrationStatus {
   }
 }
 
+interface MLStatus {
+  models_available: boolean
+  last_train_status: string | null
+}
+
 const status = ref<CalibrationStatus | null>(null)
+const mlStatus = ref<MLStatus | null>(null)
 let interval: ReturnType<typeof setInterval> | null = null
 
 async function fetchStatus(): Promise<void> {
   try {
-    const res = await fetch('/api/forecast/calibration')
-    if (res.ok) {
-      status.value = await res.json()
+    const [calRes, mlRes] = await Promise.all([
+      fetch('/api/forecast/calibration'),
+      fetch('/api/ml/status'),
+    ])
+    if (calRes.ok) {
+      status.value = await calRes.json()
+    }
+    if (mlRes.ok) {
+      mlStatus.value = await mlRes.json()
     }
   } catch {
     // Silent fail — status bar is non-critical
@@ -67,6 +79,20 @@ onUnmounted(() => {
       <template v-else>
         <span class="text-[#6b7280]">Calibration loading…</span>
       </template>
+
+      <!-- Fast path model status -->
+      <span v-if="mlStatus" class="border-l border-[#2e2e3e] pl-4">
+        Fast Path:
+        <span
+          :class="
+            mlStatus.models_available
+              ? 'text-[#22c55e]'
+              : 'text-[#6b7280]'
+          "
+        >
+          {{ mlStatus.models_available ? 'Ready' : 'Not trained' }}
+        </span>
+      </span>
     </div>
     <div>MiroFish Forecast v0.3.0</div>
   </footer>

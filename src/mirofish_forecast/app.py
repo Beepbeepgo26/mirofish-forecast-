@@ -6,6 +6,7 @@ from mirofish_forecast.api.forecast_routes import forecast_bp
 from mirofish_forecast.api.health import health_bp
 from mirofish_forecast.api.market_routes import market_bp
 from mirofish_forecast.api.middleware import register_middleware
+from mirofish_forecast.api.ml_routes import ml_bp
 from mirofish_forecast.config.settings import get_settings
 
 # Resolve the frontend dist directory
@@ -33,6 +34,7 @@ def create_app() -> Flask:
     app.register_blueprint(health_bp)
     app.register_blueprint(market_bp, url_prefix="/api/market")
     app.register_blueprint(forecast_bp, url_prefix="/api/forecast")
+    app.register_blueprint(ml_bp, url_prefix="/api/ml")
 
     # Serve Vue SPA — catch-all for non-API routes
     @app.route("/", defaults={"path": ""})

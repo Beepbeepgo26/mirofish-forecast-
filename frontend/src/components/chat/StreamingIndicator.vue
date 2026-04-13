@@ -18,6 +18,11 @@ defineProps<{ stages: StageInfo[] }>()
     >
       <!-- Icon / spinner / check -->
       <span v-if="stage.status === 'completed'" class="text-[#22c55e] text-xs">✓</span>
+      <span
+        v-else-if="stage.status === 'active' && stage.name === 'fast_inference'"
+        class="text-[#f59e0b] text-xs"
+        >⚡</span
+      >
       <span v-else-if="stage.status === 'active'" class="animate-spin text-xs">◌</span>
       <span v-else class="text-xs opacity-40">○</span>
 

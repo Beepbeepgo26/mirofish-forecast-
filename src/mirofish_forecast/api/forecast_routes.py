@@ -90,6 +90,11 @@ def start_forecast():
     if sim_preset not in ("quick", "standard", "deep"):
         sim_preset = constants.DEFAULT_SIM_PRESET
 
+    # Parse path override (fast/full/auto)
+    path_override = body.get("path")
+    if path_override not in (None, "fast", "full"):
+        path_override = None
+
     # Create session with cancel event
     forecast_id = uuid.uuid4().hex[:12]
     event_queue: Queue = Queue()
@@ -113,6 +118,7 @@ def start_forecast():
             "forecast_id": forecast_id,
             "sim_preset": sim_preset,
             "sim_count": sim_count,
+            "path_override": path_override,
         },
         daemon=True,
     )
