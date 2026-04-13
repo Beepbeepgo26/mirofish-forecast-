@@ -116,6 +116,7 @@ class TestACIRedis:
 
         # Instance 2: cold start — should pick up same alpha
         import pytest
+
         aci2 = ACITracker(cache=cache)
         assert aci2.current_alpha == pytest.approx(alpha_after, abs=1e-5)
         assert aci2.update_count == 5

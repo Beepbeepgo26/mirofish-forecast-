@@ -283,3 +283,73 @@ def check_outcomes():
             ],
         }
     )
+
+
+@forecast_bp.route("/bootstrap", methods=["POST"])
+def run_bootstrap():
+    """POST /api/forecast/bootstrap
+
+    Trigger synthetic bootstrap to cold-start CQR calibration.
+    Idempotent — skips if already done.
+    """
+    from mirofish_forecast.calibration.bootstrap import (
+        SyntheticBootstrapper,
+    )
+    from mirofish_forecast.calibration.cqr import CQRCalibrator
+
+    settings = current_app.config["SETTINGS"]
+    bootstrapper = SyntheticBootstrapper(settings)
+    result = bootstrapper.run()
+
+    if result.get("generated", 0) > 0:
+        # Train CQR immediately on the bootstrap data
+        tracker = ForecastTracker(settings)
+        features = tracker.get_calibration_features()
+
+        cqr = CQRCalibrator()
+        trained = cqr.fit(features)
+
+        result["cqr_trained"] = trained
+        result["cqr_sample_size"] = cqr.sample_size if trained else 0
+        result["cqr_coverage"] = cqr.observed_coverage if trained else None
+
+    return jsonify(result)
+
+
+@forecast_bp.route("/bootstrap/reset", methods=["POST"])
+def reset_bootstrap():
+    """POST /api/forecast/bootstrap/reset — Reset bootstrap status."""
+    from mirofish_forecast.calibration.bootstrap import (
+        SyntheticBootstrapper,
+    )
+
+    settings = current_app.config["SETTINGS"]
+    bootstrapper = SyntheticBootstrapper(settings)
+    bootstrapper.reset()
+    return jsonify({"status": "reset"})
+
+
+@forecast_bp.route("/bootstrap/status", methods=["GET"])
+def bootstrap_status():
+    """GET /api/forecast/bootstrap/status — Check bootstrap status."""
+    from mirofish_forecast.calibration.bootstrap import (
+        SyntheticBootstrapper,
+    )
+
+    settings = current_app.config["SETTINGS"]
+    bootstrapper = SyntheticBootstrapper(settings)
+    tracker = ForecastTracker(settings)
+
+    all_tracked = tracker.get_all_tracked()
+    synthetic_count = sum(1 for t in all_tracked if t.sim_preset == "synthetic")
+    organic_count = sum(1 for t in all_tracked if t.sim_preset != "synthetic")
+
+    return jsonify(
+        {
+            "bootstrap_status": bootstrapper.get_status(),
+            "total_tracked": len(all_tracked),
+            "synthetic_count": synthetic_count,
+            "organic_count": organic_count,
+            "scored_count": sum(1 for t in all_tracked if t.outcome_checked),
+        }
+    )

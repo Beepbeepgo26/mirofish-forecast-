@@ -38,6 +38,15 @@ class CacheClient:
         except Exception:
             logger.warning(f"Cache SET error for {full_key}", exc_info=True)
 
+    def delete(self, key: str) -> None:
+        """Delete a cached key. Silently fails on error."""
+        full_key = f"{CACHE_PREFIX}:{key}"
+        try:
+            self._redis.delete(full_key)
+            logger.debug(f"Cache DEL: {full_key}")
+        except Exception:
+            logger.warning(f"Cache DEL error for {full_key}", exc_info=True)
+
     def health_check(self) -> bool:
         """Returns True if Redis is reachable."""
         try:

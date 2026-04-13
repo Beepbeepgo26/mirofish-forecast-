@@ -26,6 +26,7 @@ def mock_cache():
     cache = MagicMock(spec=CacheClient)
     cache.get.return_value = None
     cache.set.return_value = None
+    cache.delete.return_value = None
     cache.health_check.return_value = True
     return cache
 
