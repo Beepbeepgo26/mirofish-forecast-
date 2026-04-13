@@ -98,6 +98,8 @@ class TestCheckOutcome:
 
     def test_scores_correctly(self, mock_settings, mock_cache: MagicMock, _patch_cache) -> None:
         """Should correctly score when horizon has elapsed."""
+        import pandas as pd
+
         old_time = datetime.utcnow() - timedelta(hours=3)
         tracking = ForecastTracking(
             forecast_id="test",
@@ -116,8 +118,15 @@ class TestCheckOutcome:
         )
         mock_cache.get.return_value = tracking.model_dump_json()
 
+        # Mock yf.download to return a bar near the target time
+        target_time = old_time + timedelta(minutes=120)
+        mock_df = pd.DataFrame(
+            {"Close": [5430.0]},
+            index=pd.DatetimeIndex([target_time]),
+        )
+
         with patch("mirofish_forecast.calibration.tracking.yf") as mock_yf:
-            mock_yf.Ticker.return_value.fast_info.last_price = 5430.0
+            mock_yf.download.return_value = mock_df
             tracker = ForecastTracker(mock_settings)
             result = tracker.check_outcome("test")
 

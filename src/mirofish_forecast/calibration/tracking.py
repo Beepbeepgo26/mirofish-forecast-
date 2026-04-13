@@ -94,8 +94,9 @@ class ForecastTracker:
             logger.debug(f"Too early to check {forecast_id}, horizon not elapsed")
             return tracking
 
-        # Fetch actual price
-        actual_price = self._fetch_actual_price(tracking.instrument)
+        # Compute when the forecast horizon expired
+        target_time = tracking.created_at + timedelta(minutes=tracking.forecast_horizon_minutes)
+        actual_price = self._fetch_actual_price(tracking.instrument, target_time)
         if actual_price is None:
             logger.warning(f"Could not fetch actual price for {forecast_id}")
             return tracking
@@ -204,16 +205,74 @@ class ForecastTracker:
             )
         return features
 
-    def _fetch_actual_price(self, instrument: str) -> float | None:
-        """Fetch the current price for outcome checking."""
+    def _fetch_actual_price(self, instrument: str, target_time: datetime) -> float | None:
+        """Fetch the price at target_time using yfinance historical bars.
+
+        Pulls a window of 1-minute bars around target_time and picks the
+        close of the bar nearest to that time. Falls back to 5-minute bars
+        over a wider window if 1-minute data is unavailable.
+
+        Args:
+            instrument: Instrument code (ES, NQ, CL, GC)
+            target_time: The UTC datetime when the forecast horizon expired
+
+        Returns:
+            The close price nearest to target_time, or None if unavailable
+        """
+        ticker_map = {
+            "ES": "ES=F",
+            "NQ": "NQ=F",
+            "CL": "CL=F",
+            "GC": "GC=F",
+        }
+        ticker = ticker_map.get(instrument, "ES=F")
+
         try:
-            ticker_map = {"ES": "ES=F", "NQ": "NQ=F", "CL": "CL=F", "GC": "GC=F"}
-            ticker = ticker_map.get(instrument, "ES=F")
-            data = yf.Ticker(ticker)
-            price = data.fast_info.last_price
-            return round(float(price), 2) if price else None
+            # Try 1-minute bars in a 30-minute window around target
+            start = target_time - timedelta(minutes=15)
+            end = target_time + timedelta(minutes=15)
+
+            data = yf.download(
+                ticker,
+                start=start.strftime("%Y-%m-%d %H:%M:%S"),
+                end=end.strftime("%Y-%m-%d %H:%M:%S"),
+                interval="1m",
+                progress=False,
+            )
+
+            if data.empty:
+                # Fallback: 5-minute bars over a wider window
+                start_wide = target_time - timedelta(hours=1)
+                end_wide = target_time + timedelta(hours=1)
+                data = yf.download(
+                    ticker,
+                    start=start_wide.strftime("%Y-%m-%d %H:%M:%S"),
+                    end=end_wide.strftime("%Y-%m-%d %H:%M:%S"),
+                    interval="5m",
+                    progress=False,
+                )
+
+            if data.empty:
+                # Final fallback: current price (better than nothing)
+                logger.warning(
+                    f"No historical bars for {ticker} near {target_time}, "
+                    "falling back to current price"
+                )
+                tick = yf.Ticker(ticker)
+                price = tick.fast_info.last_price
+                return round(float(price), 2) if price else None
+
+            # Remove timezone info for comparison
+            data.index = data.index.tz_localize(None)
+            diffs = abs(data.index - target_time)
+            closest_idx = diffs.argmin()
+            return round(float(data.iloc[closest_idx]["Close"]), 2)
+
         except Exception:
-            logger.warning(f"Failed to fetch actual price for {instrument}", exc_info=True)
+            logger.warning(
+                f"Failed to fetch actual price for {ticker} at {target_time}",
+                exc_info=True,
+            )
             return None
 
     def _add_to_index(self, forecast_id: str) -> None:

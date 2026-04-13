@@ -378,9 +378,12 @@ class MonteCarloRunner:
         # Fix 1C: Build session context string
         session_ctx = ""
         if session:
+            phase = (
+                session.session_phase if hasattr(session, "session_phase") else session.session_type
+            )
             session_ctx = (
                 f"Session: {session.session_label} | "
-                f"Phase: {session.session_phase if hasattr(session, 'session_phase') else session.session_type} | "
+                f"Phase: {phase} | "
                 f"Minutes to close: {session.minutes_to_rth_close}"
             )
 
