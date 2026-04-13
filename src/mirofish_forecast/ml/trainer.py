@@ -22,6 +22,10 @@ from mirofish_forecast.ml.model_store import ModelStore
 
 logger = logging.getLogger(__name__)
 
+# Indices of cross-asset features to exclude from direction model
+# These are indices 21, 22, 23 in the canonical FEATURE_NAMES ordering
+_CROSS_ASSET_INDICES = [21, 22, 23]
+
 
 class ModelTrainer:
     """Trains LightGBM models on historical ES data."""
@@ -99,15 +103,21 @@ class ModelTrainer:
             y_ret_train = y_ret[:split_idx]
             y_ret_test = y_ret[split_idx:]
 
-            # Step 4: Train direction classifier
+            # Step 4: Train direction classifier (exclude cross-asset features)
             import lightgbm as lgb
 
-            logger.info("Training direction classifier...")
-            dir_model = lgb.LGBMClassifier(**constants.ML_LGBM_DIRECTION_PARAMS)
-            dir_model.fit(x_train, y_dir_train)
-            dir_accuracy = float(np.mean(dir_model.predict(x_test) == y_dir_test))
+            logger.info("Training direction classifier (22 features, no cross-asset)...")
+            # Build trimmed arrays without cross-asset columns
+            keep_mask = np.ones(x_train.shape[1], dtype=bool)
+            keep_mask[_CROSS_ASSET_INDICES] = False
+            x_train_dir = x_train[:, keep_mask]
+            x_test_dir = x_test[:, keep_mask]
 
-            # Step 5: Train quantile regressors
+            dir_model = lgb.LGBMClassifier(**constants.ML_LGBM_DIRECTION_PARAMS)
+            dir_model.fit(x_train_dir, y_dir_train)
+            dir_accuracy = float(np.mean(dir_model.predict(x_test_dir) == y_dir_test))
+
+            # Step 5: Train quantile regressors (full 25 features)
             logger.info("Training quantile regressors...")
             q_low = lgb.LGBMRegressor(**constants.ML_LGBM_QUANTILE_LOW_PARAMS)
             q_low.fit(x_train, y_ret_train)
@@ -132,7 +142,11 @@ class ModelTrainer:
             self._store.save_model(
                 constants.ML_DIRECTION_MODEL_KEY,
                 dir_model,
-                {**base_meta, "accuracy": round(dir_accuracy, 4)},
+                {
+                    **base_meta,
+                    "accuracy": round(dir_accuracy, 4),
+                    "features": int(x_train_dir.shape[1]),
+                },
             )
             self._store.save_model(
                 constants.ML_QUANTILE_LOW_KEY,

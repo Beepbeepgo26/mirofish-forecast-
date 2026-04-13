@@ -11,6 +11,8 @@ import logging
 import time
 from datetime import datetime
 
+import numpy as np
+
 from mirofish_forecast.config import constants
 from mirofish_forecast.config.settings import Settings
 from mirofish_forecast.data.cache import CacheClient
@@ -21,6 +23,9 @@ from mirofish_forecast.models.forecast import FastPathResult
 from mirofish_forecast.models.market import MarketContext
 
 logger = logging.getLogger(__name__)
+
+# Cross-asset feature indices excluded from direction model
+_CROSS_ASSET_INDICES = [21, 22, 23]
 
 FAST_SYNTHESIS_PROMPT = (
     "You are a futures market analyst. "
@@ -106,7 +111,11 @@ class FastPathRunner:
         x_input = features.reshape(1, -1)
 
         # Direction probabilities (classes: 0=down, 1=flat, 2=up)
-        dir_probs = self._dir_model.predict_proba(x_input)[0]  # type: ignore[union-attr]
+        # Direction model was trained on 22 features (no cross-asset)
+        keep_mask = np.ones(x_input.shape[1], dtype=bool)
+        keep_mask[_CROSS_ASSET_INDICES] = False
+        x_dir = x_input[:, keep_mask]
+        dir_probs = self._dir_model.predict_proba(x_dir)[0]  # type: ignore[union-attr]
         prob_down = float(dir_probs[0])
         prob_flat = float(dir_probs[1])
         prob_up = float(dir_probs[2])
