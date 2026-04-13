@@ -23,6 +23,10 @@ LABEL git.sha="${GIT_SHA}"
 
 WORKDIR /app
 
+# LightGBM requires OpenMP runtime
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 && rm -rf /var/lib/apt/lists/*
+
 # Copy installed packages from builder
 COPY --from=backend-builder /install /usr/local
 

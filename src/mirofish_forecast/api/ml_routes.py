@@ -7,7 +7,6 @@ from flask import Blueprint, current_app, jsonify
 
 from mirofish_forecast.data.cache import CacheClient
 from mirofish_forecast.ml.model_store import ModelStore
-from mirofish_forecast.ml.trainer import ModelTrainer
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +30,8 @@ def train_models():
         return jsonify({"status": "already_training"}), 409
 
     def _train() -> None:
+        from mirofish_forecast.ml.trainer import ModelTrainer
+
         trainer = ModelTrainer(cache)
         trainer.train()
 

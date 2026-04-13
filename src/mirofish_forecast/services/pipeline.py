@@ -8,8 +8,6 @@ from datetime import datetime
 from queue import Queue
 from typing import Any
 
-import yfinance as yf
-
 from mirofish_forecast.calibration.tracking import ForecastTracker
 from mirofish_forecast.config import constants
 from mirofish_forecast.config.settings import Settings
@@ -369,6 +367,8 @@ class ForecastPipeline:
     def _fetch_ohlcv_bars(self, instrument: str) -> list[dict]:
         """Fetch recent OHLCV bars for feature extraction."""
         try:
+            import yfinance as yf
+
             config = constants.get_instrument_config(instrument)
             ticker = config["yfinance_ticker"]
 

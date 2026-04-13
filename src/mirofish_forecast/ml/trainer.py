@@ -10,9 +10,7 @@ generates forward-looking labels, and trains three models:
 import logging
 from datetime import datetime, timedelta
 
-import lightgbm as lgb
 import numpy as np
-import yfinance as yf
 
 from mirofish_forecast.config import constants
 from mirofish_forecast.data.cache import CacheClient
@@ -99,6 +97,8 @@ class ModelTrainer:
             y_ret_test = y_ret[split_idx:]
 
             # Step 4: Train direction classifier
+            import lightgbm as lgb
+
             logger.info("Training direction classifier...")
             dir_model = lgb.LGBMClassifier(**constants.ML_LGBM_DIRECTION_PARAMS)
             dir_model.fit(x_train, y_dir_train)
@@ -180,6 +180,8 @@ class ModelTrainer:
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None:
         """Fetch 1 year of hourly ES bars."""
         try:
+            import yfinance as yf
+
             end = datetime.utcnow()
             start = end - timedelta(days=constants.ML_TRAINING_LOOKBACK_DAYS)
 
