@@ -79,6 +79,7 @@ class FeatureExtractor:
         context: MarketContext,
         ohlcv_bars: list[dict],
         horizon_minutes: int,
+        cross_asset_returns: dict[str, float] | None = None,
     ) -> np.ndarray:
         """Extract features from current market state.
 
@@ -205,10 +206,15 @@ class FeatureExtractor:
 
         features["day_of_week_encoded"] = float(now_et.weekday())
 
-        # --- Cross-asset (placeholders for inference) ---
-        features["dxy_return_1d"] = 0.0
-        features["tlt_return_1d"] = 0.0
-        features["crude_return_1d"] = 0.0
+        # --- Cross-asset returns (live inference) ---
+        if cross_asset_returns:
+            features["dxy_return_1d"] = cross_asset_returns.get("dxy", 0.0)
+            features["tlt_return_1d"] = cross_asset_returns.get("tlt", 0.0)
+            features["crude_return_1d"] = cross_asset_returns.get("crude", 0.0)
+        else:
+            features["dxy_return_1d"] = 0.0
+            features["tlt_return_1d"] = 0.0
+            features["crude_return_1d"] = 0.0
 
         # --- Horizon ---
         features["horizon_minutes"] = float(horizon_minutes)
@@ -232,6 +238,9 @@ class FeatureExtractor:
         yield_spread: float = 0.0,
         cpi_yoy: float = 3.0,
         fed_funds: float = 5.0,
+        dxy_closes: np.ndarray | None = None,
+        tlt_closes: np.ndarray | None = None,
+        crude_closes: np.ndarray | None = None,
     ) -> np.ndarray:
         """Extract features from historical arrays at a specific index.
 
@@ -310,10 +319,21 @@ class FeatureExtractor:
         f[19] = 0.0  # session_type_encoded (RTH)
         f[20] = float(idx % 5)  # day_of_week_encoded
 
-        # Cross-asset (indices 21-23, not available)
-        f[21] = 0.0
-        f[22] = 0.0
-        f[23] = 0.0
+        # Cross-asset returns (indices 21-23)
+        # 24 hourly bars ≈ 1 trading day
+        lookback = 24
+        if dxy_closes is not None and idx >= lookback and len(dxy_closes) > idx:
+            f[21] = (dxy_closes[idx] - dxy_closes[idx - lookback]) / max(
+                dxy_closes[idx - lookback], 1e-9
+            )
+        if tlt_closes is not None and idx >= lookback and len(tlt_closes) > idx:
+            f[22] = (tlt_closes[idx] - tlt_closes[idx - lookback]) / max(
+                tlt_closes[idx - lookback], 1e-9
+            )
+        if crude_closes is not None and idx >= lookback and len(crude_closes) > idx:
+            f[23] = (crude_closes[idx] - crude_closes[idx - lookback]) / max(
+                crude_closes[idx - lookback], 1e-9
+            )
 
         # Horizon (index 24)
         f[24] = float(horizon_minutes)

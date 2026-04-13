@@ -7,6 +7,7 @@ CACHE_TTL_CROSS_ASSET = 300  # Cross-asset correlations: 5 minutes
 CACHE_TTL_FEAR_GREED = 900  # Fear & Greed: 15 minutes
 CACHE_TTL_VIX_TERM = 300  # VIX term structure: 5 minutes
 CACHE_TTL_MARKET_INTERNALS = 30  # TICK/ADD/VOLD: 30 seconds
+CACHE_TTL_CROSS_ASSET_RETURNS = 300  # Cross-asset daily returns: 5 minutes
 
 # Redis key prefixes
 CACHE_PREFIX = "mf"

@@ -266,10 +266,12 @@ class ForecastPipeline:
         )
 
         ohlcv_bars = self._fetch_ohlcv_bars(query.instrument)  # type: ignore[union-attr]
+        cross_asset_returns = self._get_cross_asset_returns()
 
         fast_result = self._fast_path.run(
             context=context,  # type: ignore[arg-type]
             ohlcv_bars=ohlcv_bars,
+            cross_asset_returns=cross_asset_returns,
             instrument=query.instrument,  # type: ignore[union-attr]
             horizon_minutes=query.forecast_horizon_minutes,  # type: ignore[union-attr]
             forecast_id=forecast_id,
@@ -363,6 +365,68 @@ class ForecastPipeline:
             return False
 
         return True
+
+    def _get_cross_asset_returns(self) -> dict[str, float]:
+        """Compute 1-day returns for DXY, TLT, CL from yfinance.
+
+        Returns dict with keys "dxy", "tlt", "crude" mapping to
+        1-day returns. Cached in Redis for 5 minutes.
+        """
+        cache_key = "cross_asset_returns:1d"
+        cached = self._tracker._cache.get(cache_key)
+        if cached:
+            try:
+                return json.loads(cached)
+            except Exception:
+                pass
+
+        returns: dict[str, float] = {
+            "dxy": 0.0,
+            "tlt": 0.0,
+            "crude": 0.0,
+        }
+
+        try:
+            import yfinance as yf
+
+            tickers = {
+                "DX-Y.NYB": "dxy",
+                "TLT": "tlt",
+                "CL=F": "crude",
+            }
+            for ticker, key in tickers.items():
+                try:
+                    data = yf.download(
+                        ticker,
+                        period="2d",
+                        interval="1d",
+                        progress=False,
+                    )
+                    if data.empty or len(data) < 2:
+                        continue
+                    if hasattr(data.columns, "levels"):
+                        data.columns = data.columns.get_level_values(0)
+                    closes = data["Close"].values.flatten()
+                    if len(closes) >= 2 and closes[-2] > 0:
+                        returns[key] = round(
+                            float((closes[-1] - closes[-2]) / closes[-2]),
+                            6,
+                        )
+                except Exception:
+                    pass  # Individual ticker failure is fine
+
+            self._tracker._cache.set(
+                cache_key,
+                json.dumps(returns),
+                constants.CACHE_TTL_CROSS_ASSET_RETURNS,
+            )
+        except Exception:
+            logger.warning(
+                "Failed to compute cross-asset returns",
+                exc_info=True,
+            )
+
+        return returns
 
     def _fetch_ohlcv_bars(self, instrument: str) -> list[dict]:
         """Fetch recent OHLCV bars for feature extraction."""

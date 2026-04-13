@@ -146,3 +146,63 @@ class TestFeatureExtractor:
 
         # return_1bar (index 0) should differ
         assert result_up[0] != result_flat[0]
+
+    def test_cross_asset_features_populated(self) -> None:
+        """Cross-asset returns should be non-zero when arrays are provided."""
+        extractor = FeatureExtractor()
+        n = 200
+        closes = np.linspace(5200, 5400, n)
+        highs = closes + 5
+        lows = closes - 5
+        opens = closes - 1
+        volumes = np.ones(n) * 10000
+
+        # DXY trending up
+        dxy = np.linspace(104.0, 105.0, n)
+        # TLT trending down
+        tlt = np.linspace(92.0, 90.0, n)
+        # Crude flat
+        crude = np.ones(n) * 78.0
+
+        result = extractor.extract_from_historical(
+            closes,
+            highs,
+            lows,
+            opens,
+            volumes,
+            idx=100,
+            horizon_minutes=120,
+            dxy_closes=dxy,
+            tlt_closes=tlt,
+            crude_closes=crude,
+        )
+
+        # Indices 21, 22, 23 should be non-zero
+        assert result[21] != 0.0  # dxy_return_1d
+        assert result[22] != 0.0  # tlt_return_1d
+        # crude is flat, so return should be ~0
+        assert abs(result[23]) < 0.001
+
+    def test_cross_asset_features_zero_when_missing(self) -> None:
+        """Cross-asset returns should be zero when arrays are None."""
+        extractor = FeatureExtractor()
+        n = 200
+        closes = np.linspace(5200, 5400, n)
+        highs = closes + 5
+        lows = closes - 5
+        opens = closes - 1
+        volumes = np.ones(n) * 10000
+
+        result = extractor.extract_from_historical(
+            closes,
+            highs,
+            lows,
+            opens,
+            volumes,
+            idx=100,
+            horizon_minutes=120,
+        )
+
+        assert result[21] == 0.0
+        assert result[22] == 0.0
+        assert result[23] == 0.0

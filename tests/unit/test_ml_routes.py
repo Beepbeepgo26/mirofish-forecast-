@@ -11,9 +11,7 @@ class TestMLRoutes:
             mock_cache.get.return_value = None
             mock_cls.return_value = mock_cache
 
-            with patch(
-                "mirofish_forecast.ml.trainer.ModelTrainer"
-            ):
+            with patch("mirofish_forecast.ml.trainer.ModelTrainer"):
                 resp = client.post("/api/ml/train")
                 assert resp.status_code == 202
                 data = resp.get_json()

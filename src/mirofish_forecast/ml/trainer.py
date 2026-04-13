@@ -60,7 +60,7 @@ class ModelTrainer:
                     "error": "No historical data available",
                 }
 
-            closes, highs, lows, opens, volumes = data
+            closes, highs, lows, opens, volumes, dxy_closes, tlt_closes, crude_closes = data
             logger.info(f"Fetched {len(closes)} hourly bars")
 
             # Step 2: Build feature matrix + labels
@@ -72,6 +72,9 @@ class ModelTrainer:
                 opens,
                 volumes,
                 horizon_minutes,
+                dxy_closes=dxy_closes,
+                tlt_closes=tlt_closes,
+                crude_closes=crude_closes,
             )
             logger.info(f"Dataset: {x_arr.shape[0]} samples, {x_arr.shape[1]} features")
 
@@ -177,35 +180,112 @@ class ModelTrainer:
 
     def _fetch_data(
         self,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None:
-        """Fetch 1 year of hourly ES bars."""
+    ) -> (
+        tuple[
+            np.ndarray,
+            np.ndarray,
+            np.ndarray,
+            np.ndarray,
+            np.ndarray,
+            np.ndarray,
+            np.ndarray,
+            np.ndarray,
+        ]
+        | None
+    ):
+        """Fetch 1 year of hourly bars for ES + cross-asset tickers.
+
+        Returns:
+            Tuple of (closes, highs, lows, opens, volumes,
+                      dxy_closes, tlt_closes, crude_closes)
+            or None if fetch fails.
+        """
         try:
             import yfinance as yf
 
             end = datetime.utcnow()
             start = end - timedelta(days=constants.ML_TRAINING_LOOKBACK_DAYS)
+            start_str = start.strftime("%Y-%m-%d")
+            end_str = end.strftime("%Y-%m-%d")
 
-            data = yf.download(
+            # Fetch ES OHLCV
+            es_data = yf.download(
                 "ES=F",
-                start=start.strftime("%Y-%m-%d"),
-                end=end.strftime("%Y-%m-%d"),
+                start=start_str,
+                end=end_str,
                 interval="1h",
                 progress=False,
             )
 
-            if data.empty or len(data) < 200:
+            if es_data.empty or len(es_data) < 200:
                 return None
 
-            if hasattr(data.columns, "levels"):
-                data.columns = data.columns.get_level_values(0)
+            if hasattr(es_data.columns, "levels"):
+                es_data.columns = es_data.columns.get_level_values(0)
 
-            closes = data["Close"].values.flatten().astype(np.float64)
-            highs = data["High"].values.flatten().astype(np.float64)
-            lows = data["Low"].values.flatten().astype(np.float64)
-            opens = data["Open"].values.flatten().astype(np.float64)
-            volumes = data["Volume"].values.flatten().astype(np.float64)
+            closes = es_data["Close"].values.flatten().astype(np.float64)
+            highs = es_data["High"].values.flatten().astype(np.float64)
+            lows = es_data["Low"].values.flatten().astype(np.float64)
+            opens = es_data["Open"].values.flatten().astype(np.float64)
+            volumes = es_data["Volume"].values.flatten().astype(np.float64)
 
-            return closes, highs, lows, opens, volumes
+            n = len(closes)
+
+            # Fetch cross-asset close prices (best-effort)
+            dxy_closes = np.zeros(n, dtype=np.float64)
+            tlt_closes = np.zeros(n, dtype=np.float64)
+            crude_closes = np.zeros(n, dtype=np.float64)
+
+            cross_tickers = {
+                "DX-Y.NYB": "dxy",
+                "TLT": "tlt",
+                "CL=F": "crude",
+            }
+
+            for ticker, name in cross_tickers.items():
+                try:
+                    data = yf.download(
+                        ticker,
+                        start=start_str,
+                        end=end_str,
+                        interval="1h",
+                        progress=False,
+                    )
+                    if data.empty:
+                        logger.warning(f"No data for {ticker}, using zeros")
+                        continue
+
+                    if hasattr(data.columns, "levels"):
+                        data.columns = data.columns.get_level_values(0)
+
+                    cross_closes = data["Close"].values.flatten().astype(np.float64)
+
+                    # Align to ES timestamps (use min length)
+                    aligned_len = min(len(cross_closes), n)
+                    if name == "dxy":
+                        dxy_closes[-aligned_len:] = cross_closes[-aligned_len:]
+                    elif name == "tlt":
+                        tlt_closes[-aligned_len:] = cross_closes[-aligned_len:]
+                    elif name == "crude":
+                        crude_closes[-aligned_len:] = cross_closes[-aligned_len:]
+
+                    logger.info(f"Fetched {len(cross_closes)} bars for {ticker}")
+                except Exception:
+                    logger.warning(
+                        f"Failed to fetch {ticker}",
+                        exc_info=True,
+                    )
+
+            return (
+                closes,
+                highs,
+                lows,
+                opens,
+                volumes,
+                dxy_closes,
+                tlt_closes,
+                crude_closes,
+            )
 
         except Exception:
             logger.error("Failed to fetch training data", exc_info=True)
@@ -219,6 +299,9 @@ class ModelTrainer:
         opens: np.ndarray,
         volumes: np.ndarray,
         horizon_minutes: int,
+        dxy_closes: np.ndarray | None = None,
+        tlt_closes: np.ndarray | None = None,
+        crude_closes: np.ndarray | None = None,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Build feature matrix and label vectors.
 
@@ -246,6 +329,9 @@ class ModelTrainer:
                 volumes,
                 idx=idx,
                 horizon_minutes=horizon_minutes,
+                dxy_closes=dxy_closes,
+                tlt_closes=tlt_closes,
+                crude_closes=crude_closes,
             )
             x_list.append(features)
 

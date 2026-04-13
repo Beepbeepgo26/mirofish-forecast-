@@ -72,6 +72,7 @@ class FastPathRunner:
         horizon_minutes: int,
         forecast_id: str,
         pipeline_start_time: float,
+        cross_asset_returns: dict[str, float] | None = None,
     ) -> FastPathResult:
         """Run the fast path inference.
 
@@ -93,7 +94,12 @@ class FastPathRunner:
             raise RuntimeError("Fast path models not available")
 
         # Step 1: Extract features
-        features = self._extractor.extract(context, ohlcv_bars, horizon_minutes)
+        features = self._extractor.extract(
+            context,
+            ohlcv_bars,
+            horizon_minutes,
+            cross_asset_returns=cross_asset_returns,
+        )
 
         # Step 2: LightGBM inference
         t0 = time.time()
