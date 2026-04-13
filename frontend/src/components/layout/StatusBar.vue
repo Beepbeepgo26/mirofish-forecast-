@@ -1,0 +1,73 @@
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue'
+
+interface CalibrationStatus {
+  summary: {
+    total_tracked: number
+    total_scored: number
+    direction_accuracy: number | null
+    p50_coverage: number | null
+    p90_coverage: number | null
+    mean_absolute_error: number | null
+  }
+}
+
+const status = ref<CalibrationStatus | null>(null)
+let interval: ReturnType<typeof setInterval> | null = null
+
+async function fetchStatus(): Promise<void> {
+  try {
+    const res = await fetch('/api/forecast/calibration')
+    if (res.ok) {
+      status.value = await res.json()
+    }
+  } catch {
+    // Silent fail — status bar is non-critical
+  }
+}
+
+onMounted(() => {
+  fetchStatus()
+  interval = setInterval(fetchStatus, 120000) // Every 2 minutes
+})
+
+onUnmounted(() => {
+  if (interval) clearInterval(interval)
+})
+</script>
+
+<template>
+  <footer
+    class="flex items-center justify-between px-4 py-1.5 border-t border-[#2e2e3e] bg-[#111118] text-[10px] font-mono text-[#6b7280] shrink-0"
+  >
+    <div class="flex items-center gap-4">
+      <template v-if="status?.summary">
+        <span>
+          Calibration:
+          <span
+            :class="
+              status.summary.total_scored >= 200
+                ? 'text-[#22c55e]'
+                : 'text-[#f59e0b]'
+            "
+          >
+            {{ status.summary.total_scored >= 200 ? 'Active' : 'Warming up' }}
+          </span>
+        </span>
+        <span> Scored: {{ status.summary.total_scored }} </span>
+        <span v-if="status.summary.direction_accuracy !== null">
+          Dir:
+          {{ (status.summary.direction_accuracy * 100).toFixed(0) }}%
+        </span>
+        <span v-if="status.summary.p90_coverage !== null">
+          P90 cov:
+          {{ (status.summary.p90_coverage * 100).toFixed(0) }}%
+        </span>
+      </template>
+      <template v-else>
+        <span class="text-[#6b7280]">Calibration loading…</span>
+      </template>
+    </div>
+    <div>MiroFish Forecast v0.3.0</div>
+  </footer>
+</template>

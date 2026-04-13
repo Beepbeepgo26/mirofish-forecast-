@@ -18,7 +18,11 @@ export const useForecastStore = defineStore('forecast', () => {
   const customSimCount = ref<number | null>(null)
   const showAdvanced = ref(false)
 
-  function addQuery(query: string, preset: SimPreset) {
+  // Phase 2: Active instrument for chart
+  const activeInstrument = ref<string>('ES')
+  const chartInterval = ref<string>('5m')
+
+  function addQuery(query: string, preset: SimPreset): void {
     history.value.push({
       id: crypto.randomUUID(),
       type: 'query',
@@ -28,16 +32,20 @@ export const useForecastStore = defineStore('forecast', () => {
     })
   }
 
-  function addResult(result: ForecastResult) {
+  function addResult(result: ForecastResult): void {
     history.value.push({
       id: crypto.randomUUID(),
       type: 'result',
       result,
       timestamp: new Date(),
     })
+    // Update active instrument to match the forecast
+    if (result.instrument) {
+      activeInstrument.value = result.instrument
+    }
   }
 
-  function addError(message: string) {
+  function addError(message: string): void {
     history.value.push({
       id: crypto.randomUUID(),
       type: 'error',
@@ -46,7 +54,7 @@ export const useForecastStore = defineStore('forecast', () => {
     })
   }
 
-  function clearHistory() {
+  function clearHistory(): void {
     history.value = []
   }
 
@@ -55,6 +63,8 @@ export const useForecastStore = defineStore('forecast', () => {
     currentPreset,
     customSimCount,
     showAdvanced,
+    activeInstrument,
+    chartInterval,
     addQuery,
     addResult,
     addError,

@@ -21,6 +21,16 @@ export interface ProbabilityDistribution {
   scenario_probs: Record<string, number>
 }
 
+export interface CalibrationMetrics {
+  is_calibrated: boolean
+  calibration_sample_size: number
+  expected_coverage: number
+  observed_coverage: number | null
+  interval_width_adjustment: number
+  aci_alpha_current: number
+  ece: number | null
+}
+
 export interface ForecastResult {
   forecast_id: string
   instrument: string
@@ -37,6 +47,7 @@ export interface ForecastResult {
   created_at: string
   pipeline_duration_seconds: number
   build_method: string
+  calibration?: CalibrationMetrics
 }
 
 export type SimPreset = 'quick' | 'standard' | 'deep'

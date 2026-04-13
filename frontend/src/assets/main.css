@@ -52,3 +52,9 @@ body {
   animation: blink 1s step-end infinite;
   color: var(--color-accent);
 }
+
+/* Ensure splitpanes styles aren't purged */
+.splitpanes__splitter {
+  position: relative;
+  touch-action: none;
+}
