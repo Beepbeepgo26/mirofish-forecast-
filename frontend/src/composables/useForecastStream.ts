@@ -13,11 +13,19 @@ export interface StageInfo {
   completedAt?: number
 }
 
-const STAGE_ORDER = ['parsing', 'data_collection', 'scenario_building', 'simulation', 'synthesis']
+const STAGE_ORDER = [
+  'parsing',
+  'data_collection',
+  'fast_inference',
+  'scenario_building',
+  'simulation',
+  'synthesis',
+]
 
 const STAGE_LABELS: Record<string, string> = {
   parsing: 'Understanding your question',
   data_collection: 'Pulling market data',
+  fast_inference: 'Running fast inference ⚡',
   scenario_building: 'Building scenarios',
   simulation: 'Running simulations',
   synthesis: 'Synthesizing forecast',

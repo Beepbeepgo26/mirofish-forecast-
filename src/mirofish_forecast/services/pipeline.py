@@ -286,10 +286,62 @@ class ForecastPipeline:
             },
         )
 
+        # Normalize fast path result into ForecastResult-compatible shape
+        # so the frontend ForecastCard can render it without changes
+        normalized = {
+            "forecast_id": fast_result.forecast_id,
+            "instrument": fast_result.instrument,
+            "forecast_horizon_minutes": fast_result.forecast_horizon_minutes,
+            "current_price": fast_result.current_price,
+            "forecast_text": fast_result.forecast_text,
+            "distribution": {
+                "median": fast_result.predicted_median,
+                "mean": fast_result.predicted_median,
+                "std_dev": round(
+                    (fast_result.predicted_p95 - fast_result.predicted_p5) / 3.29,
+                    2,
+                ),
+                "percentile_5": fast_result.predicted_p5,
+                "percentile_25": round(
+                    (fast_result.predicted_p5 + fast_result.predicted_median) / 2,
+                    2,
+                ),
+                "percentile_75": round(
+                    (fast_result.predicted_median + fast_result.predicted_p95) / 2,
+                    2,
+                ),
+                "percentile_95": fast_result.predicted_p95,
+                "skewness": 0.0,
+                "prob_up": fast_result.prob_up,
+                "prob_down": fast_result.prob_down,
+                "prob_flat": fast_result.prob_flat,
+                "scenario_probs": {},
+            },
+            "total_simulations": 0,
+            "successful_simulations": 0,
+            "sim_preset": "fast",
+            "institutional_reasoning": (
+                f"Fast path: {fast_result.predicted_direction} "
+                f"({fast_result.direction_confidence:.0%} confidence)"
+            ),
+            "retail_reasoning": "",
+            "market_maker_reasoning": "",
+            "created_at": fast_result.created_at.isoformat() if fast_result.created_at else None,
+            "pipeline_duration_seconds": fast_result.pipeline_duration_seconds,
+            "build_method": "fast_path",
+            "calibration": fast_result.calibration.model_dump()
+            if hasattr(fast_result, "calibration") and fast_result.calibration
+            else None,
+            # Extra fast-path fields
+            "inference_ms": fast_result.inference_ms,
+            "predicted_direction": fast_result.predicted_direction,
+            "direction_confidence": fast_result.direction_confidence,
+        }
+
         self._emit_event(
             constants.STAGE_COMPLETE,
             {
-                "forecast": json.loads(fast_result.model_dump_json()),
+                "forecast": normalized,
                 "path": "fast",
             },
         )
