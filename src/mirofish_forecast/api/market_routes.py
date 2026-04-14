@@ -157,14 +157,14 @@ def get_market_snapshot():
         context = aggregator.get_market_context()
         snapshot = {
             "cross_asset": {
-                "es_price": context.es_price,
-                "nq_price": getattr(context, "nq_price", None),
-                "dxy_price": getattr(context, "dxy_price", None),
-                "gld_price": getattr(context, "gld_price", None),
-                "crude_price": getattr(context, "crude_price", None),
+                "es_price": context.cross_asset.es_price,
+                "nq_price": context.cross_asset.nq_price,
+                "dxy_price": context.cross_asset.dxy_price,
+                "gld_price": context.cross_asset.gld_price,
+                "crude_price": context.cross_asset.crude_price,
             },
             "vix": {
-                "spot": context.vix_spot,
+                "spot": context.vix.spot,
             },
         }
         cache.set("market:snapshot", json.dumps(snapshot), 30)
