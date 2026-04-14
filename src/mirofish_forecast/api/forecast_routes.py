@@ -87,7 +87,7 @@ def start_forecast():
             return jsonify({"error": "sim_count must be an integer"}), 400
 
     # Validate sim_preset
-    if sim_preset not in ("quick", "standard", "deep"):
+    if sim_preset not in ("quick", "standard", "deep", "simple"):
         sim_preset = constants.DEFAULT_SIM_PRESET
 
     # Parse path override (fast/full/auto)

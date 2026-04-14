@@ -22,7 +22,7 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
-const presets: SimPreset[] = ['quick', 'standard', 'deep']
+const presets: SimPreset[] = ['simple', 'quick', 'standard', 'deep']
 </script>
 
 <template>

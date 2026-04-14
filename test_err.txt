@@ -1,0 +1,267 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.12, pytest-8.4.2, pluggy-1.6.0 -- /Users/sam/Desktop/mirofish-forecast/.venv/bin/python3.13
+cachedir: .pytest_cache
+rootdir: /Users/sam/Desktop/mirofish-forecast
+configfile: pyproject.toml
+plugins: mock-3.15.1, cov-5.0.0, anyio-4.13.0
+collecting ... collected 7 items
+
+tests/unit/test_routing_priority.py::test_deep_preset_forces_full_path FAILED [ 14%]
+tests/unit/test_routing_priority.py::test_standard_preset_forces_full_path FAILED [ 28%]
+tests/unit/test_routing_priority.py::test_quick_preset_forces_full_path FAILED [ 42%]
+tests/unit/test_routing_priority.py::test_simple_preset_forces_fast_path FAILED [ 57%]
+tests/unit/test_routing_priority.py::test_explicit_path_override_beats_preset FAILED [ 71%]
+tests/unit/test_routing_priority.py::test_auto_route_only_without_preset FAILED [ 85%]
+tests/unit/test_routing_priority.py::test_auto_route_full_for_distribution FAILED [100%]
+
+=================================== FAILURES ===================================
+______________________ test_deep_preset_forces_full_path _______________________
+tests/unit/test_routing_priority.py:11: in test_deep_preset_forces_full_path
+    settings = Settings(fast_path_enabled=True, fast_path_auto_route=True)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/pydantic_settings/main.py:242: in __init__
+    super().__init__(**__pydantic_self__.__class__._settings_build_values(sources, init_kwargs))
+E   pydantic_core._pydantic_core.ValidationError: 3 validation errors for Settings
+E   fred_api_key
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+E   redis_url
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+E   redis_token
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+____________________ test_standard_preset_forces_full_path _____________________
+tests/unit/test_routing_priority.py:29: in test_standard_preset_forces_full_path
+    settings = Settings(fast_path_enabled=True, fast_path_auto_route=True)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/pydantic_settings/main.py:242: in __init__
+    super().__init__(**__pydantic_self__.__class__._settings_build_values(sources, init_kwargs))
+E   pydantic_core._pydantic_core.ValidationError: 3 validation errors for Settings
+E   fred_api_key
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+E   redis_url
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+E   redis_token
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+______________________ test_quick_preset_forces_full_path ______________________
+tests/unit/test_routing_priority.py:47: in test_quick_preset_forces_full_path
+    settings = Settings(fast_path_enabled=True, fast_path_auto_route=True)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/pydantic_settings/main.py:242: in __init__
+    super().__init__(**__pydantic_self__.__class__._settings_build_values(sources, init_kwargs))
+E   pydantic_core._pydantic_core.ValidationError: 3 validation errors for Settings
+E   fred_api_key
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+E   redis_url
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+E   redis_token
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+_____________________ test_simple_preset_forces_fast_path ______________________
+tests/unit/test_routing_priority.py:65: in test_simple_preset_forces_fast_path
+    settings = Settings(fast_path_enabled=True, fast_path_auto_route=True)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/pydantic_settings/main.py:242: in __init__
+    super().__init__(**__pydantic_self__.__class__._settings_build_values(sources, init_kwargs))
+E   pydantic_core._pydantic_core.ValidationError: 3 validation errors for Settings
+E   fred_api_key
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+E   redis_url
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+E   redis_token
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+___________________ test_explicit_path_override_beats_preset ___________________
+tests/unit/test_routing_priority.py:83: in test_explicit_path_override_beats_preset
+    settings = Settings(fast_path_enabled=True, fast_path_auto_route=True)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/pydantic_settings/main.py:242: in __init__
+    super().__init__(**__pydantic_self__.__class__._settings_build_values(sources, init_kwargs))
+E   pydantic_core._pydantic_core.ValidationError: 3 validation errors for Settings
+E   fred_api_key
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+E   redis_url
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+E   redis_token
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+_____________________ test_auto_route_only_without_preset ______________________
+tests/unit/test_routing_priority.py:101: in test_auto_route_only_without_preset
+    settings = Settings(fast_path_enabled=True, fast_path_auto_route=True)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/pydantic_settings/main.py:242: in __init__
+    super().__init__(**__pydantic_self__.__class__._settings_build_values(sources, init_kwargs))
+E   pydantic_core._pydantic_core.ValidationError: 3 validation errors for Settings
+E   fred_api_key
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+E   redis_url
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+E   redis_token
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+____________________ test_auto_route_full_for_distribution _____________________
+tests/unit/test_routing_priority.py:119: in test_auto_route_full_for_distribution
+    settings = Settings(fast_path_enabled=True, fast_path_auto_route=True)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/pydantic_settings/main.py:242: in __init__
+    super().__init__(**__pydantic_self__.__class__._settings_build_values(sources, init_kwargs))
+E   pydantic_core._pydantic_core.ValidationError: 3 validation errors for Settings
+E   fred_api_key
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+E   redis_url
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+E   redis_token
+E     Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+--------- coverage: platform darwin, python 3.13.12-final-0 ----------
+Name                                                         Stmts   Miss  Cover   Missing
+------------------------------------------------------------------------------------------
+src/mirofish_forecast/__init__.py                                0      0   100%
+src/mirofish_forecast/api/__init__.py                            0      0   100%
+src/mirofish_forecast/api/forecast_routes.py                   147    110    25%   28-36, 57-129, 146-168, 183-193, 199-202, 208-216, 222-230, 242-257, 273-278, 301-322, 328-335, 341-353
+src/mirofish_forecast/api/health.py                             25     16    36%   13-16, 22, 28-43
+src/mirofish_forecast/api/market_routes.py                      72     59    18%   19-22, 32-134, 144-174
+src/mirofish_forecast/api/middleware.py                         22     17    23%   12-32
+src/mirofish_forecast/api/ml_routes.py                          28     17    39%   22-41, 47-50
+src/mirofish_forecast/app.py                                    29     17    41%   24-50
+src/mirofish_forecast/calibration/__init__.py                    3      0   100%
+src/mirofish_forecast/calibration/aci.py                        66     66     0%   13-134
+src/mirofish_forecast/calibration/bootstrap.py                 134    108    19%   37-38, 49-87, 94-95, 99, 103-128, 146-178, 189-226, 267-277, 281-296
+src/mirofish_forecast/calibration/cqr.py                        71     71     0%   9-181
+src/mirofish_forecast/calibration/reliability.py                64     64     0%   7-150
+src/mirofish_forecast/calibration/tracking.py                  130    110    15%   29, 40-71, 78-152, 156-162, 166-176, 180, 184-206, 222-276, 280-296, 300-307
+src/mirofish_forecast/config/__init__.py                         0      0   100%
+src/mirofish_forecast/config/constants.py                      127      1    99%   246
+src/mirofish_forecast/config/settings.py                        21      1    95%   50
+src/mirofish_forecast/data/__init__.py                           7      0   100%
+src/mirofish_forecast/data/cache.py                             41     29    29%   16, 20-30, 34-39, 43-48, 52-56
+src/mirofish_forecast/data/economic_calendar.py                137    115    16%   30-32, 36-68, 72-111, 119-130, 141-173, 181-226, 231-232, 240-290
+src/mirofish_forecast/data/fear_greed_client.py                 23     13    43%   17, 21-38
+src/mirofish_forecast/data/fred_client.py                       57     43    25%   30-31, 35-60, 64-71, 80-98
+src/mirofish_forecast/data/ib_client.py                         28     16    43%   18-19, 23-32, 36-49
+src/mirofish_forecast/data/vix_client.py                        48     37    23%   13-19, 23-28, 35, 39-82
+src/mirofish_forecast/data/yfinance_client.py                   32     22    31%   17, 21-48
+src/mirofish_forecast/llm/__init__.py                            2      0   100%
+src/mirofish_forecast/llm/client.py                             27     14    48%   26-27, 50-73, 91-104
+src/mirofish_forecast/llm/prompts/__init__.py                    0      0   100%
+src/mirofish_forecast/llm/prompts/agent_decision.py              1      0   100%
+src/mirofish_forecast/llm/prompts/build_scenarios.py             1      0   100%
+src/mirofish_forecast/llm/prompts/institutional_context.py      18     16    11%   29-71
+src/mirofish_forecast/llm/prompts/interpret_context.py           1      0   100%
+src/mirofish_forecast/llm/prompts/market_maker_context.py       34     32     6%   15-68
+src/mirofish_forecast/llm/prompts/parse_query.py                 1      0   100%
+src/mirofish_forecast/llm/prompts/retail_context.py             37     35     5%   16-81
+src/mirofish_forecast/llm/prompts/synthesize_forecast.py         1      0   100%
+src/mirofish_forecast/llm/schemas.py                            46      0   100%
+src/mirofish_forecast/ml/__init__.py                             0      0   100%
+src/mirofish_forecast/ml/fast_path.py                           82     61    26%   56-64, 68-70, 95-163, 187-206, 210-243
+src/mirofish_forecast/ml/feature_extractor.py                  155    138    11%   65, 70, 75, 95-222, 258-341
+src/mirofish_forecast/ml/model_store.py                         58     43    26%   17, 35-51, 62-69, 80-86, 90, 98-104, 108-115, 119-127
+src/mirofish_forecast/ml/trainer.py                            135    135     0%   10-366
+src/mirofish_forecast/models/__init__.py                         6      0   100%
+src/mirofish_forecast/models/base.py                             3      0   100%
+src/mirofish_forecast/models/forecast.py                       108      0   100%
+src/mirofish_forecast/models/market.py                          73      0   100%
+src/mirofish_forecast/models/query.py                           37      0   100%
+src/mirofish_forecast/models/scenario.py                        51      0   100%
+src/mirofish_forecast/services/__init__.py                       2      0   100%
+src/mirofish_forecast/services/data_aggregator.py               63     44    30%   23-29, 36-65, 69-95, 99
+src/mirofish_forecast/services/forecast_synthesizer.py          86     66    23%   37-38, 65-130, 160-255, 270-272, 276-283, 293-295
+src/mirofish_forecast/services/nlp_parser.py                    95     77    19%   30-31, 50-91, 95-104, 114-161, 180-204, 208-239
+src/mirofish_forecast/services/pipeline.py                     175    144    18%   42-51, 55, 74-244, 262-389, 408-437, 445-499, 503-540, 546, 553-554, 558, 562-567
+src/mirofish_forecast/services/scenario_builder.py             197    168    15%   47-49, 56-67, 90-112, 120-165, 175-179, 185-224, 230-294, 302-306, 310-394, 405-553, 568-578, 582-591, 595-604
+src/mirofish_forecast/services/session_context.py              138    113    18%   46-123, 142-167, 184-314, 324-335
+src/mirofish_forecast/services/simulation_runner.py            137    114    17%   38-39, 62-78, 88-94, 104-135, 145-309, 320-331, 336-354, 374-442
+src/mirofish_forecast/utils/__init__.py                          0      0   100%
+src/mirofish_forecast/utils/aggregation.py                      41     33    20%   24-38, 54-73, 112-137
+src/mirofish_forecast/utils/logging.py                          18     18     0%   1-33
+------------------------------------------------------------------------------------------
+TOTAL                                                         3141   2183    30%
+
+=========================== short test summary info ============================
+FAILED tests/unit/test_routing_priority.py::test_deep_preset_forces_full_path - pydantic_core._pydantic_core.ValidationError: 3 validation errors for Settings
+fred_api_key
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+redis_url
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+redis_token
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+FAILED tests/unit/test_routing_priority.py::test_standard_preset_forces_full_path - pydantic_core._pydantic_core.ValidationError: 3 validation errors for Settings
+fred_api_key
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+redis_url
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+redis_token
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+FAILED tests/unit/test_routing_priority.py::test_quick_preset_forces_full_path - pydantic_core._pydantic_core.ValidationError: 3 validation errors for Settings
+fred_api_key
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+redis_url
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+redis_token
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+FAILED tests/unit/test_routing_priority.py::test_simple_preset_forces_fast_path - pydantic_core._pydantic_core.ValidationError: 3 validation errors for Settings
+fred_api_key
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+redis_url
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+redis_token
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+FAILED tests/unit/test_routing_priority.py::test_explicit_path_override_beats_preset - pydantic_core._pydantic_core.ValidationError: 3 validation errors for Settings
+fred_api_key
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+redis_url
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+redis_token
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+FAILED tests/unit/test_routing_priority.py::test_auto_route_only_without_preset - pydantic_core._pydantic_core.ValidationError: 3 validation errors for Settings
+fred_api_key
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+redis_url
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+redis_token
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+FAILED tests/unit/test_routing_priority.py::test_auto_route_full_for_distribution - pydantic_core._pydantic_core.ValidationError: 3 validation errors for Settings
+fred_api_key
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+redis_url
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+redis_token
+  Field required [type=missing, input_value={'fast_path_enabled': Tru..._path_auto_route': True}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+============================== 7 failed in 0.38s ===============================

@@ -50,7 +50,7 @@ export interface ForecastResult {
   calibration?: CalibrationMetrics
 }
 
-export type SimPreset = 'quick' | 'standard' | 'deep'
+export type SimPreset = 'simple' | 'quick' | 'standard' | 'deep'
 
 export interface FastPathResult {
   forecast_id: string
@@ -83,6 +83,7 @@ export interface SimPresetConfig {
 }
 
 export const SIM_PRESETS: Record<SimPreset, SimPresetConfig> = {
+  simple: { label: 'Simple', sims: 0, time: '~5s', cost: '$0' },
   quick: { label: 'Quick', sims: 100, time: '~90s', cost: '~$1.50' },
   standard: { label: 'Standard', sims: 200, time: '~2.5min', cost: '~$3' },
   deep: { label: 'Deep', sims: 500, time: '~6min', cost: '~$7' },

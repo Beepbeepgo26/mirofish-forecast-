@@ -1,0 +1,23 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.12, pytest-8.4.2, pluggy-1.6.0 -- /Users/sam/Desktop/mirofish-forecast/.venv/bin/python3.13
+cachedir: .pytest_cache
+rootdir: /Users/sam/Desktop/mirofish-forecast
+configfile: pyproject.toml
+plugins: mock-3.15.1, cov-5.0.0, anyio-4.13.0
+collecting ... collected 0 items / 1 error
+
+==================================== ERRORS ====================================
+_____________ ERROR collecting tests/unit/test_routing_priority.py _____________
+ImportError while importing test module '/Users/sam/Desktop/mirofish-forecast/tests/unit/test_routing_priority.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.13/3.13.12_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/test_routing_priority.py:6: in <module>
+    from mirofish_forecast.models.query import ParsedQuery, QueryType
+E   ImportError: cannot import name 'ParsedQuery' from 'mirofish_forecast.models.query' (/Users/sam/Desktop/mirofish-forecast/src/mirofish_forecast/models/query.py)
+=========================== short test summary info ============================
+ERROR tests/unit/test_routing_priority.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+=============================== 1 error in 0.13s ===============================

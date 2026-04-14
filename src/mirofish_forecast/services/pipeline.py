@@ -124,7 +124,9 @@ class ForecastPipeline:
             )
 
             # Route decision: fast path or full path?
-            use_fast_path = self._should_use_fast_path(query, path_override)
+            use_fast_path = self._should_use_fast_path(
+                query, sim_preset, path_override,
+            )
 
             if use_fast_path and self._fast_path.is_available():
                 self._run_fast_path(
@@ -392,17 +394,33 @@ class ForecastPipeline:
     def _should_use_fast_path(
         self,
         query: object,
+        sim_preset: str = "standard",
         path_override: str | None = None,
     ) -> bool:
-        """Decide whether to use the fast path for this query."""
+        """Decide whether to use the fast path for this query.
+
+        Priority order:
+        1. Explicit path override ('fast' or 'full') — ultimate authority
+        2. Sim tier selection — quick/standard/deep force full MC,
+           'simple' forces fast path
+        3. Auto-route based on QueryType — fallback only
+        """
         if not self._settings.fast_path_enabled:
             return False
 
+        # 1. Explicit override always wins
         if path_override == "fast":
             return True
         if path_override == "full":
             return False
 
+        # 2. Sim tier selection takes priority over auto-routing
+        if sim_preset in ("quick", "standard", "deep"):
+            return False
+        if sim_preset == "simple":
+            return True
+
+        # 3. Auto-route fallback (only for unrecognized/empty preset)
         if not self._settings.fast_path_auto_route:
             return False
 
