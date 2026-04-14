@@ -3,12 +3,16 @@ import { ref, onMounted, onUnmounted } from 'vue'
 
 interface CalibrationStatus {
   summary: {
-    total_tracked: number
-    total_scored: number
+    total_forecasts: number
+    scored_forecasts: number
+    pending_forecasts: number
+    calibration_ready: boolean
     direction_accuracy: number | null
     p50_coverage: number | null
     p90_coverage: number | null
     mean_absolute_error: number | null
+    ece: number | null
+    sample_size: number | null
   }
 }
 
@@ -58,15 +62,15 @@ onUnmounted(() => {
           Calibration:
           <span
             :class="
-              status.summary.total_scored >= 200
+              status.summary.calibration_ready
                 ? 'text-[#22c55e]'
                 : 'text-[#f59e0b]'
             "
           >
-            {{ status.summary.total_scored >= 200 ? 'Active' : 'Warming up' }}
+            {{ status.summary.calibration_ready ? 'Active' : 'Warming up' }}
           </span>
         </span>
-        <span> Scored: {{ status.summary.total_scored }} </span>
+        <span> Scored: {{ status.summary.scored_forecasts }} </span>
         <span v-if="status.summary.direction_accuracy !== null">
           Dir:
           {{ (status.summary.direction_accuracy * 100).toFixed(0) }}%

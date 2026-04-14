@@ -30,7 +30,7 @@ function formatTime(date: Date): string {
       <div class="text-[10px] text-[#6b7280] mt-1 font-mono">
         {{ formatTime(entry.timestamp) }}
         · {{ entry.result.pipeline_duration_seconds.toFixed(0) }}s
-        · {{ entry.result.successful_simulations }}/{{ entry.result.total_simulations }} sims
+        · {{ entry.result.build_method === 'fast_path' ? '⚡ fast' : `${entry.result.successful_simulations}/${entry.result.total_simulations} sims` }}
       </div>
     </div>
   </div>
