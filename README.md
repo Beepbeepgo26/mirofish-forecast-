@@ -1,5 +1,9 @@
 # MiroFish Forecast
 
+> ⚠️ **Repo Identity Check:** This is `mirofish-forecast` — the standalone forecasting app.
+> For the trading simulation app, see `mirofish-trading` repo.
+> See `AGENT_CONTEXT.md` for full disambiguation.
+
 Natural language forecasting layer for ES futures.
 
 ## Quick Start
