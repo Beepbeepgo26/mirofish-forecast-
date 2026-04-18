@@ -29,6 +29,25 @@ class CacheClient:
             logger.warning(f"Cache GET error for {full_key}", exc_info=True)
             return None
 
+    def zrevrange(self, key: str, start: int, stop: int) -> list[str]:
+        """Get members from sorted set in reverse score order."""
+        full_key = f"{CACHE_PREFIX}:{key}"
+        try:
+            results = self._redis.zrevrange(full_key, start, stop)
+            return [r for r in results] if results else []
+        except Exception:
+            logger.warning(f"Redis zrevrange failed for key={full_key}", exc_info=True)
+            return []
+
+    def zremrangebyscore(self, key: str, min_score: float, max_score: float) -> None:
+        """Remove members from sorted set within score range."""
+        full_key = f"{CACHE_PREFIX}:{key}"
+        try:
+            self._redis.zremrangebyscore(full_key, min_score, max_score)
+        except Exception:
+            logger.warning(f"Redis zremrangebyscore failed for key={full_key}", exc_info=True)
+            return None
+
     def set(self, key: str, value: str, ttl_seconds: int) -> None:
         """Set a cached value with TTL. Silently fails on error."""
         full_key = f"{CACHE_PREFIX}:{key}"

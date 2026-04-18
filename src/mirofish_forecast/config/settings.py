@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     redis_url: str
     redis_token: str
 
+    # Databento
+    databento_api_key: str = ""
+
     # IB Market Internals Relay
     ib_relay_url: str = "http://localhost:5001"
 

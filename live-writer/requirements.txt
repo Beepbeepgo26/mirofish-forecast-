@@ -1,0 +1,2 @@
+databento>=0.40,<1.0
+upstash-redis>=1.0,<2.0

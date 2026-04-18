@@ -11,6 +11,7 @@ from mirofish_forecast.data.fred_client import FredClient
 from mirofish_forecast.data.ib_client import IBClient
 from mirofish_forecast.data.vix_client import VixClient
 from mirofish_forecast.data.yfinance_client import YFinanceClient
+from mirofish_forecast.data.databento_client import DatabentoClient
 from mirofish_forecast.models.market import MarketContext
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ class DataAggregator:
         self._yfinance = YFinanceClient(self._cache)
         self._ib = IBClient(settings, self._cache)
         self._calendar = EconomicCalendarClient(settings, self._cache)
+        self._databento = DatabentoClient(settings, self._cache)
 
     def get_market_context(self) -> MarketContext:
         """Pull from all sources and assemble MarketContext.
@@ -40,6 +42,21 @@ class DataAggregator:
         cross_asset = self._yfinance.get_cross_asset_snapshot()
         fear_greed = self._fear_greed.get_fear_greed()
         internals = self._ib.get_market_internals()
+
+        # Override CME prices with Databento (much fresher than yfinance)
+        if self._databento.is_enabled and self._databento.is_live_writer_healthy():
+            overrides = {}
+            for instrument, field in [
+                ("ES", "es_price"),
+                ("NQ", "nq_price"),
+                ("CL", "crude_price"),
+                ("GC", "gc_price"),
+            ]:
+                db_price = self._databento.get_latest_price(instrument)
+                if db_price is not None:
+                    overrides[field] = db_price
+            if overrides:
+                cross_asset = cross_asset.model_copy(update=overrides)
 
         # Pull economic calendar events
         try:
@@ -65,7 +82,12 @@ class DataAggregator:
         return context
 
     def get_instrument_price(self, instrument: str) -> float | None:
-        """Get the current price for a specific instrument via yfinance."""
+        """Get current price — Databento first, yfinance fallback."""
+        if self._databento.is_enabled and instrument.upper() in constants.DATABENTO_SYMBOL_MAP:
+            price = self._databento.get_latest_price(instrument)
+            if price is not None:
+                return price
+
         config = get_instrument_config(instrument)
         ticker = config["yfinance_ticker"]
 

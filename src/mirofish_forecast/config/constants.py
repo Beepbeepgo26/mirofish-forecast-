@@ -12,6 +12,37 @@ CACHE_TTL_CROSS_ASSET_RETURNS = 300  # Cross-asset daily returns: 5 minutes
 # Redis key prefixes
 CACHE_PREFIX = "mf"
 
+# --- Databento Integration ---
+
+# Dataset and symbols
+DATABENTO_DATASET = "GLBX.MDP3"
+DATABENTO_SYMBOL_MAP: dict[str, str] = {
+    "ES": "ES.c.0",
+    "NQ": "NQ.c.0",
+    "CL": "CL.c.0",
+    "GC": "GC.c.0",
+}
+
+# Redis key patterns (written by Live Writer, read by DatabentoClient)
+DATABENTO_PRICE_KEY_PREFIX = "databento:price"       # databento:price:ES → "7060.25"
+DATABENTO_BAR_KEY_PREFIX = "databento:bar"           # databento:bar:ES:{timestamp} → bar JSON
+DATABENTO_BARLIST_PREFIX = "databento:barlist"        # Sorted set of bar keys
+DATABENTO_WRITER_HEARTBEAT = "databento:writer:heartbeat"
+
+# Cache TTLs
+CACHE_TTL_DATABENTO_PRICE = 10       # Latest price: 10 seconds
+CACHE_TTL_SESSION_LEVELS = 60        # Session levels: 60 seconds
+
+# Bar counts for different contexts
+SCENARIO_BUILDER_BARS = 78           # Full RTH session (6.5hr ÷ 5min = 78 bars)
+AGENT_CONTEXT_BARS = 50              # Per-agent calls (enough for channels + 20-EMA)
+SESSION_LEVEL_BARS = 300             # ~25 hours of 5-min bars (today + yesterday + overnight)
+
+# Session reference levels
+RTH_START_MINUTES = 570              # 9:30 AM ET = 9*60 + 30
+RTH_END_MINUTES = 960                # 4:00 PM ET = 16*60
+INITIAL_BALANCE_BARS = 12            # First 60 minutes = 12 five-minute bars
+
 # FRED series IDs
 FRED_SERIES_FED_FUNDS = "DFF"
 FRED_SERIES_10Y_YIELD = "DGS10"
@@ -359,7 +390,7 @@ FOMC_SEP_DATES_2026 = [
 # --- Phase 7: LightGBM Fast Path ---
 
 # Feature extraction
-FEATURE_OHLCV_LOOKBACK = 50  # Bars of history for feature computation
+FEATURE_OHLCV_LOOKBACK = 78  # Bars of history for feature computation
 FEATURE_VOL_WINDOW = 20  # Rolling window for realized vol
 FEATURE_MOMENTUM_WINDOWS = [1, 3, 6, 12]  # Bar lookbacks for returns
 
@@ -377,13 +408,15 @@ ML_TRAINING_LOOKBACK_DAYS = 365
 ML_TRAINING_HORIZONS = [30, 60, 120, 240]
 ML_DEFAULT_HORIZON = 120
 ML_MIN_TRAINING_SAMPLES = 500
-ML_DIRECTION_FLAT_THRESHOLD = 0.001  # 0.1% = flat
+ML_DIRECTION_MODE = "binary"                    # "binary" or "multiclass"
+ML_DIRECTION_MIN_MOVE_PCT = 0.001               # 0.10% min move to qualify as up/down (~6 pts on ES at 5700)
+ML_DIRECTION_CONFIDENCE_THRESHOLD = 0.55        # Abstain below this — report "flat"
+ML_DIRECTION_FLAT_THRESHOLD = 0.001             # Legacy — used by tracking/bootstrap for actual direction
 ML_TRAIN_STATUS_KEY = "ml:train_status"
 
 # LightGBM hyperparameters
 ML_LGBM_DIRECTION_PARAMS: dict = {
-    "objective": "multiclass",
-    "num_class": 3,
+    "objective": "binary",
     "num_leaves": 31,
     "learning_rate": 0.05,
     "n_estimators": 200,
@@ -421,3 +454,48 @@ FAST_PATH_ELIGIBLE_QUERY_TYPES = [
 # Pipeline stage for fast path
 STAGE_FAST_INFERENCE = "fast_inference"
 STAGE_MESSAGES_FAST = "Running fast inference..."
+
+# --- Hybrid Agent Prompt Framework ---
+
+# Signal score thresholds (from Brooks rubric in ml/signal_bar.py)
+SIGNAL_SCORE_HIGH_CONVICTION = 70
+SIGNAL_SCORE_MODERATE = 50
+SIGNAL_SCORE_NO_TRADE = 30
+
+# Agent confidence constraints (applied after time-of-day multiplier)
+AGENT_MIN_CONFIDENCE = 0.55     # Floor — prevents near-random outputs
+AGENT_MAX_CONFIDENCE = 0.95     # Ceiling — prevents overconfidence
+
+# Baseline agent weights (sum = 1.0)
+AGENT_WEIGHTS: dict[str, float] = {
+    "institutional": 0.45,
+    "market_maker": 0.35,
+    "retail": 0.20,
+}
+
+# Regime-adjusted weight overrides
+AGENT_WEIGHTS_TREND: dict[str, float] = {
+    "institutional": 0.50,       # Institutional leads in trends
+    "market_maker": 0.30,
+    "retail": 0.20,
+}
+
+AGENT_WEIGHTS_RANGE: dict[str, float] = {
+    "institutional": 0.35,
+    "market_maker": 0.45,        # Market maker leads in ranges (mean-reversion)
+    "retail": 0.20,
+}
+
+AGENT_WEIGHTS_HIGH_SENTIMENT: dict[str, float] = {
+    "institutional": 0.35,
+    "market_maker": 0.30,
+    "retail": 0.35,              # Retail contrarian elevated at sentiment extremes
+}
+
+# --- Experiment Tracking ---
+
+EXPERIMENT_PREFIX = "mf:experiments"
+EXPERIMENT_INDEX_KEY = "mf:experiments:index"
+EXPERIMENT_MAX_RUNS = 100          # Keep last 100 training runs
+EXPERIMENT_TTL = 86400 * 180       # 6 months retention
+

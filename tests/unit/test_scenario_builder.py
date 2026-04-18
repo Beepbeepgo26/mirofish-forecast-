@@ -179,4 +179,5 @@ class TestContextBlockTemplates:
         scenario = builder.build(query, context)
 
         text = scenario.market_maker_context.context_text
-        assert "unavailable" in text  # Should indicate IB relay not configured, not crash
+        # New template shows "N/A" for TICK/ADD/VOLD and "offline" in the footnote
+        assert "N/A" in text or "offline" in text  # Should indicate IB relay not configured

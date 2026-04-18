@@ -147,12 +147,33 @@ def compute_calibration_summary(forecasts: list[ForecastTracking]) -> dict:
     direction_correct = [f for f in scored if f.direction_correct]
     coverage = compute_interval_coverage(scored)
 
+    # Directional accuracy excluding abstentions (confidence-filtered)
+    directional_forecasts = [
+        f
+        for f in scored
+        if f.predicted_prob_up is not None
+        and f.predicted_prob_down is not None
+        and max(f.predicted_prob_up, f.predicted_prob_down)
+        >= constants.ML_DIRECTION_CONFIDENCE_THRESHOLD
+    ]
+    if directional_forecasts:
+        dir_correct_confident = sum(1 for f in directional_forecasts if f.direction_correct)
+        direction_accuracy_confident = round(
+            dir_correct_confident / len(directional_forecasts), 4
+        )
+        direction_confident_count = len(directional_forecasts)
+    else:
+        direction_accuracy_confident = None
+        direction_confident_count = 0
+
     return {
         "total_forecasts": len(forecasts),
         "scored_forecasts": len(scored),
         "pending_forecasts": len(forecasts) - len(scored),
         "calibration_ready": len(scored) >= constants.CALIBRATION_MIN_SAMPLES,
         "direction_accuracy": round(len(direction_correct) / max(len(scored), 1), 3),
+        "direction_accuracy_confident": direction_accuracy_confident,
+        "direction_confident_count": direction_confident_count,
         "mean_absolute_error": round(
             sum(f.absolute_error for f in scored if f.absolute_error is not None)
             / max(len(scored), 1),

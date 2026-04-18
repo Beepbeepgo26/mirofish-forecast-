@@ -48,21 +48,37 @@ class ScenarioBuilder:
         self._llm = LLMClient(settings)
         self._current_instrument: str = "ES"
 
-    def build(self, query: ForecastQuery, context: MarketContext) -> SimulationScenario:
+    def build(
+        self,
+        query: ForecastQuery,
+        context: MarketContext,
+        price_context_text: str = "",
+        session_levels: dict | None = None,
+    ) -> SimulationScenario:
         """Build a complete SimulationScenario.
 
         Attempts LLM-powered generation first, falls back to templates on failure.
+
+        Args:
+            query: The forecast query (instrument, horizon, direction bias).
+            context: Full market context (macro, VIX, cross-asset, internals).
+            price_context_text: Optional pre-formatted price bar text for scenarios.
+            session_levels: Session reference levels from session_levels.py
+                            (VWAP, PDH/PDL, ONH/ONL, IB H/L). Injected directly
+                            into institutional and retail agent context blocks.
         """
         self._current_instrument = query.instrument
         logger.info(
             f"Building scenario for {query.instrument} ({query.forecast_horizon_minutes}min)"
         )
 
-        # Step 1: Generate agent-specific context blocks
-        inst_ctx, retail_ctx, mm_ctx = self._build_context_blocks(query, context)
+        # Step 1: Generate agent-specific context blocks (with live session levels)
+        inst_ctx, retail_ctx, mm_ctx = self._build_context_blocks(
+            query, context, session_levels=session_levels
+        )
 
         # Step 2: Generate ranked scenarios and market regime
-        scenario_data = self._build_scenarios(query, context)
+        scenario_data = self._build_scenarios(query, context, price_context_text)
 
         return SimulationScenario(
             instrument=query.instrument,
@@ -169,17 +185,17 @@ class ScenarioBuilder:
     # ---------------------------------------------------------------
 
     def _build_context_blocks(
-        self, query: ForecastQuery, context: MarketContext
+        self, query: ForecastQuery, context: MarketContext, session_levels: dict | None = None
     ) -> tuple[AgentContextBlock, AgentContextBlock, AgentContextBlock]:
         """Generate agent-specific context blocks. LLM first, template fallback."""
         try:
-            return self._build_context_blocks_llm(query, context)
+            return self._build_context_blocks_llm(query, context, session_levels)
         except Exception:
             logger.warning("LLM context interpretation failed, using templates", exc_info=True)
-            return self._build_context_blocks_template(query, context)
+            return self._build_context_blocks_template(query, context, session_levels)
 
     def _build_context_blocks_llm(
-        self, query: ForecastQuery, context: MarketContext
+        self, query: ForecastQuery, context: MarketContext, session_levels: dict | None = None
     ) -> tuple[AgentContextBlock, AgentContextBlock, AgentContextBlock]:
         """Use GPT-4o to generate interpretive context blocks."""
         inst_config = get_instrument_config(query.instrument)
@@ -191,6 +207,12 @@ class ScenarioBuilder:
 
         events_text = self._format_events_for_context(context)
 
+        # Append session key levels to user message so GPT-4o has real level data
+        session_levels_text = ""
+        if session_levels:
+            from mirofish_forecast.data.session_levels import format_session_levels_text
+            session_levels_text = f"\n\n{format_session_levels_text(session_levels)}"
+
         parsed: ParsedContextBlocks = self._llm.parse_structured(
             system_prompt=system_prompt,
             user_message=(
@@ -198,6 +220,7 @@ class ScenarioBuilder:
                 f"Key drivers: {inst_config['key_drivers']}\n\n"
                 f"Scheduled Economic Events:\n{events_text}\n\n"
                 f"Current market data:\n{context_json}"
+                f"{session_levels_text}"
             ),
             response_format=ParsedContextBlocks,
             temperature=0.3,
@@ -224,11 +247,14 @@ class ScenarioBuilder:
         return institutional, retail, market_maker
 
     def _build_context_blocks_template(
-        self, query: ForecastQuery, context: MarketContext
+        self, query: ForecastQuery, context: MarketContext, session_levels: dict | None = None
     ) -> tuple[AgentContextBlock, AgentContextBlock, AgentContextBlock]:
         """Deterministic template fallback for context blocks."""
         instrument = query.instrument
         current_price = self._resolve_price(instrument, context)
+
+        # Extract session level values for injection
+        sl = session_levels or {}
 
         institutional = AgentContextBlock(
             agent_type="institutional",
@@ -249,8 +275,30 @@ class ScenarioBuilder:
                 tlt_price=context.cross_asset.tlt_price,
                 gld_price=context.cross_asset.gld_price,
                 crude_price=context.cross_asset.crude_price,
+                # Session key levels (live from Databento)
+                session_vwap=sl.get("vwap"),
+                session_vwap_upper=sl.get("vwap_upper"),
+                session_vwap_lower=sl.get("vwap_lower"),
+                prior_rth_high=sl.get("prior_rth_high"),
+                prior_rth_low=sl.get("prior_rth_low"),
+                prior_rth_close=sl.get("prior_rth_close"),
+                overnight_high=sl.get("overnight_high"),
+                overnight_low=sl.get("overnight_low"),
+                ib_high=sl.get("ib_high"),
+                ib_low=sl.get("ib_low"),
+                ib_range=sl.get("ib_range"),
+                today_rth_open=sl.get("today_rth_open"),
             ),
             priority_signals=self._infer_institutional_signals(context),
+        )
+
+        # Gap analysis for retail contrarian
+        open_price = sl.get("today_rth_open")
+        prior_close = sl.get("prior_rth_close")
+        gap_from_prior = (
+            (open_price - prior_close)
+            if open_price is not None and prior_close is not None
+            else None
         )
 
         retail = AgentContextBlock(
@@ -263,27 +311,28 @@ class ScenarioBuilder:
                 es_price=current_price,
                 nq_price=context.cross_asset.nq_price,
                 spy_price=context.cross_asset.spy_price,
+                gap_from_prior_close=gap_from_prior,
+                prior_rth_close=prior_close,
+                current_price_for_gap=current_price,
             ),
             priority_signals=self._infer_retail_signals(context),
         )
 
         has_internals = context.internals is not None and context.internals.nyse_tick is not None
 
-        if has_internals:
-            mm_context_text = build_market_maker_context_template(
-                instrument=instrument,
-                nyse_tick=context.internals.nyse_tick,
-                nyse_add=context.internals.nyse_add,
-                nyse_vold=context.internals.nyse_vold,
-                vix_spot=context.vix.spot,
-                es_price=current_price,
-            )
-        else:
-            mm_context_text = (
-                f"Market internals: unavailable (IB relay not configured)\n"
-                f"VIX: {context.vix.spot}\n"
-                f"Price: {current_price}"
-            )
+        mm_context_text = build_market_maker_context_template(
+            instrument=instrument,
+            nyse_tick=context.internals.nyse_tick if has_internals else None,
+            nyse_add=context.internals.nyse_add if has_internals else None,
+            nyse_vold=context.internals.nyse_vold if has_internals else None,
+            vix_spot=context.vix.spot,
+            es_price=current_price,
+            # GEX data — None until a GEX provider is connected
+            gex_regime=None,
+            call_wall=None,
+            put_wall=None,
+            zero_gamma=None,
+        )
 
         market_maker = AgentContextBlock(
             agent_type="market_maker",
@@ -297,15 +346,19 @@ class ScenarioBuilder:
     # Scenario generation
     # ---------------------------------------------------------------
 
-    def _build_scenarios(self, query: ForecastQuery, context: MarketContext) -> dict:
+    def _build_scenarios(
+        self, query: ForecastQuery, context: MarketContext, price_context_text: str = ""
+    ) -> dict:
         """Generate three ranked scenarios. LLM first, template fallback."""
         try:
-            return self._build_scenarios_llm(query, context)
+            return self._build_scenarios_llm(query, context, price_context_text)
         except Exception:
             logger.warning("LLM scenario generation failed, using template", exc_info=True)
             return self._build_scenarios_template(query, context)
 
-    def _build_scenarios_llm(self, query: ForecastQuery, context: MarketContext) -> dict:
+    def _build_scenarios_llm(
+        self, query: ForecastQuery, context: MarketContext, price_context_text: str = ""
+    ) -> dict:
         """Use GPT-4o to generate ranked scenarios."""
         inst_config = get_instrument_config(query.instrument)
 
@@ -319,6 +372,7 @@ class ScenarioBuilder:
             f"Direction bias: {query.direction_bias or 'none stated'}\n"
             f"Event mention: {query.mentions_event or 'none'}\n\n"
             f"Scheduled Economic Events:\n{events_text}\n\n"
+            f"{price_context_text}\n\n"
             f"Current market data:\n{context.model_dump_json()}"
         )
 

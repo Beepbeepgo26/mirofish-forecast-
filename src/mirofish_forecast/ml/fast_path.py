@@ -35,8 +35,8 @@ FAST_SYNTHESIS_PROMPT = (
     "Current price: {current_price}\n\n"
     "Model prediction:\n"
     "- Direction: {direction} ({confidence:.0%} confidence)\n"
-    "- P(up): {prob_up:.1%}, P(down): {prob_down:.1%}, "
-    "P(flat): {prob_flat:.1%}\n"
+    "- P(up): {prob_up:.1%}, P(down): {prob_down:.1%}\n"
+    "- Confidence signal: {confidence_label}\n"
     "- 90% price interval: {p5:.2f} – {p95:.2f}\n"
     "- Median estimate: {median:.2f}\n\n"
     "Market context:\n"
@@ -110,15 +110,35 @@ class FastPathRunner:
         t0 = time.time()
         x_input = features.reshape(1, -1)
 
-        # Direction probabilities (classes: 0=down, 1=flat, 2=up)
-        # Direction model was trained on 22 features (no cross-asset)
+        # Direction probabilities (binary model: 0=down, 1=up)
+        # Direction model was trained on trimmed features (no cross-asset)
         keep_mask = np.ones(x_input.shape[1], dtype=bool)
         keep_mask[_CROSS_ASSET_INDICES] = False
         x_dir = x_input[:, keep_mask]
+
         dir_probs = self._dir_model.predict_proba(x_dir)[0]  # type: ignore[union-attr]
+
+        # Binary model: dir_probs has 2 columns [prob_down, prob_up]
         prob_down = float(dir_probs[0])
-        prob_flat = float(dir_probs[1])
-        prob_up = float(dir_probs[2])
+        prob_up = float(dir_probs[1])
+
+        # Confidence gate: abstain if below threshold
+        max_prob = max(prob_up, prob_down)
+        conf_threshold = constants.ML_DIRECTION_CONFIDENCE_THRESHOLD
+
+        if max_prob < conf_threshold:
+            # Low confidence — abstain (report as flat)
+            direction = "flat"
+            confidence = max_prob
+            prob_flat = 1.0 - prob_up - prob_down
+        elif prob_up >= prob_down:
+            direction = "up"
+            confidence = prob_up
+            prob_flat = 0.0
+        else:
+            direction = "down"
+            confidence = prob_down
+            prob_flat = 0.0
 
         # Price interval
         p5_price = float(self._q_low_model.predict(x_input)[0])  # type: ignore[union-attr]
@@ -126,19 +146,16 @@ class FastPathRunner:
 
         inference_ms = (time.time() - t0) * 1000
 
-        # Determine direction
-        if prob_up >= prob_down and prob_up >= prob_flat:
-            direction = "up"
-            confidence = prob_up
-        elif prob_down >= prob_up and prob_down >= prob_flat:
-            direction = "down"
-            confidence = prob_down
-        else:
-            direction = "flat"
-            confidence = prob_flat
-
         current_price = context.cross_asset.es_price or 5400.0
         median = round((p5_price + p95_price) / 2, 2)
+
+        # Confidence label for synthesis prompt
+        if confidence >= 0.60:
+            confidence_label = "HIGH — strong directional signal"
+        elif confidence >= 0.55:
+            confidence_label = "MODERATE — directional lean"
+        else:
+            confidence_label = "LOW — model abstaining"
 
         # Step 3: GPT-4o synthesis
         forecast_text = self._synthesize(
@@ -147,6 +164,7 @@ class FastPathRunner:
             current_price=current_price,
             direction=direction,
             confidence=confidence,
+            confidence_label=confidence_label,
             prob_up=prob_up,
             prob_down=prob_down,
             prob_flat=prob_flat,
@@ -214,9 +232,9 @@ class FastPathRunner:
                 current_price=kwargs["current_price"],
                 direction=kwargs["direction"],
                 confidence=kwargs["confidence"],
+                confidence_label=kwargs["confidence_label"],
                 prob_up=kwargs["prob_up"],
                 prob_down=kwargs["prob_down"],
-                prob_flat=kwargs["prob_flat"],
                 p5=kwargs["p5"],
                 p95=kwargs["p95"],
                 median=kwargs["median"],

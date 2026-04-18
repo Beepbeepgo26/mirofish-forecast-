@@ -22,6 +22,12 @@ from mirofish_forecast.services.nlp_parser import NLPParser
 from mirofish_forecast.services.scenario_builder import ScenarioBuilder
 from mirofish_forecast.services.session_context import get_session_info
 from mirofish_forecast.services.simulation_runner import MonteCarloRunner
+from mirofish_forecast.data.databento_client import DatabentoClient
+from mirofish_forecast.data.session_levels import (
+    compute_session_levels,
+    format_session_levels_text,
+    format_bars_for_agents,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -139,12 +145,28 @@ class ForecastPipeline:
 
             # ---- Full MC path (stages 3-5) ----
 
+            # Fetch price bars + session levels
+            bars_5m, session_levels, bars_text, levels_text = self._get_price_context(
+                query.instrument
+            )
+            price_context_text = f"{levels_text}\n\n{bars_text}"
+
+            # Pre-compute bar analytics for agent prompts
+            from mirofish_forecast.services.bar_analytics import (
+                compute_bar_analytics,
+                format_analytics_for_prompt,
+            )
+            bar_analytics = compute_bar_analytics(bars_5m)
+            analytics_text = format_analytics_for_prompt(bar_analytics)
+
             # Stage 3: Build scenarios
             if self._is_cancelled():
                 self._emit_cancel()
                 return
             self._emit_stage(constants.STAGE_SCENARIO_BUILDING)
-            scenario = self._scenario_builder.build(query, context)
+            scenario = self._scenario_builder.build(
+                query, context, price_context_text=price_context_text,
+            )
             self._emit_stage_complete(
                 constants.STAGE_SCENARIO_BUILDING,
                 {
@@ -184,6 +206,10 @@ class ForecastPipeline:
                 sim_count=query.sim_count,
                 progress_callback=progress_callback,
                 session=session,
+                bar_analytics=bar_analytics,
+                session_levels_text=levels_text,
+                price_bars_text=bars_text,
+                analytics_text=analytics_text,
             )
 
             success_count = sum(1 for r in sim_results if r.success)
@@ -267,7 +293,10 @@ class ForecastPipeline:
             },
         )
 
-        ohlcv_bars = self._fetch_ohlcv_bars(query.instrument)  # type: ignore[union-attr]
+        bars_5m, session_levels, bars_text, levels_text = self._get_price_context(
+            query.instrument
+        )
+        ohlcv_bars = bars_5m  # Use 5-min Databento bars for features
         cross_asset_returns = self._get_cross_asset_returns()
 
         fast_result = self._fast_path.run(
@@ -498,20 +527,47 @@ class ForecastPipeline:
 
         return returns
 
-    def _fetch_ohlcv_bars(self, instrument: str) -> list[dict]:
-        """Fetch recent OHLCV bars for feature extraction."""
+    def _get_price_context(self, instrument: str) -> tuple[list[dict], dict, str, str]:
+        """Fetch 5-min bars and session levels for agent context.
+
+        Returns:
+            (bars_5m, session_levels, bars_text, levels_text)
+        """
+        databento = DatabentoClient(self._settings, self._tracker._cache)
+
+        # Get 5-min bars from Databento (Redis)
+        bars_5m = []
+        if databento.is_enabled:
+            bars_5m = databento.get_5min_bars(
+                instrument, count=constants.SESSION_LEVEL_BARS
+            )
+
+        # Fallback to yfinance if Databento unavailable
+        if not bars_5m:
+            bars_5m = self._fetch_ohlcv_bars_yfinance(instrument)
+
+        # Compute session levels
+        session_levels = compute_session_levels(bars_5m)
+
+        # Format for agent context
+        # Scenario builder gets 78 bars (full RTH)
+        # Agent calls get 50 bars (recent action)
+        bars_text = format_bars_for_agents(
+            bars_5m, max_bars=constants.AGENT_CONTEXT_BARS
+        )
+        levels_text = format_session_levels_text(session_levels)
+
+        return bars_5m, session_levels, bars_text, levels_text
+
+    def _fetch_ohlcv_bars_yfinance(self, instrument: str) -> list[dict]:
+        """Fallback: fetch bars from yfinance when Databento is unavailable."""
         try:
             import yfinance as yf
 
             config = constants.get_instrument_config(instrument)
             ticker = config["yfinance_ticker"]
 
-            data = yf.download(
-                ticker,
-                period="5d",
-                interval="1h",
-                progress=False,
-            )
+            data = yf.download(ticker, period="5d", interval="5m", progress=False)
 
             if data.empty:
                 return []
@@ -520,24 +576,31 @@ class ForecastPipeline:
                 data.columns = data.columns.get_level_values(0)
 
             bars: list[dict] = []
-            for ts, row in data.tail(constants.FEATURE_OHLCV_LOOKBACK).iterrows():
-                bars.append(
-                    {
-                        "time": int(ts.timestamp()),
-                        "open": float(row["Open"]),
-                        "high": float(row["High"]),
-                        "low": float(row["Low"]),
-                        "close": float(row["Close"]),
-                        "volume": int(row.get("Volume", 0)),
-                    }
-                )
+            for ts, row in data.tail(300).iterrows():
+                bars.append({
+                    "time": int(ts.timestamp()),
+                    "open": float(row["Open"]),
+                    "high": float(row["High"]),
+                    "low": float(row["Low"]),
+                    "close": float(row["Close"]),
+                    "volume": int(row.get("Volume", 0)),
+                })
             return bars
         except Exception:
-            logger.warning(
-                f"Failed to fetch OHLCV for {instrument}",
-                exc_info=True,
-            )
+            logger.warning(f"yfinance OHLCV fallback failed for {instrument}", exc_info=True)
             return []
+
+    def _fetch_ohlcv_bars(self, instrument: str) -> list[dict]:
+        """Fetch recent bars — Databento first, yfinance fallback."""
+        databento = DatabentoClient(self._settings, self._tracker._cache)
+        if databento.is_enabled:
+            bars = databento.get_5min_bars(
+                instrument, count=constants.FEATURE_OHLCV_LOOKBACK
+            )
+            if bars:
+                return bars
+
+        return self._fetch_ohlcv_bars_yfinance(instrument)
 
     # ---- Event emission helpers ----
 

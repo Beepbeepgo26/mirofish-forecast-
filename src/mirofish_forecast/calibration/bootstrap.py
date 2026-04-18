@@ -212,13 +212,14 @@ class SyntheticBootstrapper:
         else:
             actual_direction = "flat"
 
-        # Determine predicted direction
-        if prob_up > max(prob_down, prob_flat):
+        # Determine predicted direction (binary + confidence gate)
+        max_prob = max(prob_up, prob_down)
+        if max_prob < constants.ML_DIRECTION_CONFIDENCE_THRESHOLD:
+            predicted_direction = "flat"  # Abstention
+        elif prob_up >= prob_down:
             predicted_direction = "up"
-        elif prob_down > max(prob_up, prob_flat):
-            predicted_direction = "down"
         else:
-            predicted_direction = "flat"
+            predicted_direction = "down"
 
         created_at = datetime.utcnow() - timedelta(hours=rng.randint(1, 720))
         forecast_id = f"synth_{horizon_minutes}m_{idx}"
@@ -263,18 +264,27 @@ class SyntheticBootstrapper:
 
     @staticmethod
     def _simulate_probs(rng: random.Random, simulated_return: float) -> tuple[float, float, float]:
-        """Simulate direction probabilities from a return."""
-        if simulated_return > 0.001:
-            prob_up = 0.5 + min(abs(simulated_return) * 50, 0.35)
-            prob_flat = 0.1
-            prob_down = 1.0 - prob_up - prob_flat
-        elif simulated_return < -0.001:
-            prob_down = 0.5 + min(abs(simulated_return) * 50, 0.35)
-            prob_flat = 0.1
-            prob_up = 1.0 - prob_down - prob_flat
+        """Simulate direction probabilities from a return.
+
+        Binary model: prob_down + prob_up ≈ 1.0, prob_flat = 0.0.
+        Low-confidence predictions set prob_flat > 0 as abstention indicator.
+        """
+        if abs(simulated_return) > 0.001:
+            # Confident directional prediction
+            if simulated_return > 0:
+                prob_up = 0.55 + min(abs(simulated_return) * 40, 0.35)
+                prob_down = 1.0 - prob_up
+            else:
+                prob_down = 0.55 + min(abs(simulated_return) * 40, 0.35)
+                prob_up = 1.0 - prob_down
+            prob_flat = 0.0
         else:
-            prob_up, prob_down, prob_flat = 0.35, 0.35, 0.30
-        return prob_up, prob_down, prob_flat
+            # Near threshold — model would abstain
+            prob_up = 0.48 + rng.uniform(-0.05, 0.05)
+            prob_down = 1.0 - prob_up
+            prob_flat = 0.0
+
+        return round(prob_up, 3), round(prob_down, 3), round(prob_flat, 3)
 
     def _add_to_index(self, forecast_id: str) -> None:
         """Add to the same index that ForecastTracker uses."""
