@@ -29,11 +29,15 @@ def train_models():
     if status == "training":
         return jsonify({"status": "already_training"}), 409
 
-    def _train() -> None:
-        from mirofish_forecast.ml.trainer import ModelTrainer
+    # Capture the concrete app object (not the LocalProxy) before spawning
+    app = current_app._get_current_object()
 
-        trainer = ModelTrainer(cache)
-        trainer.train()
+    def _train() -> None:
+        with app.app_context():
+            from mirofish_forecast.ml.trainer import ModelTrainer
+
+            trainer = ModelTrainer(cache, settings=settings)
+            trainer.train()
 
     thread = Thread(target=_train, daemon=True)
     thread.start()
