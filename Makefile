@@ -1,4 +1,4 @@
-.PHONY: install test lint typecheck docker-build docker-run clean
+.PHONY: install test lint typecheck docker-build docker-run clean healthcheck
 
 install:
 	pip install -e ".[dev]"
@@ -37,3 +37,5 @@ frontend-dev:
 frontend-build:
 	cd frontend && npm run build
 
+healthcheck:
+	python -m mirofish_forecast.healthcheck.runner
