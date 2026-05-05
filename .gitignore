@@ -13,3 +13,6 @@ htmlcov/
 *.db
 .DS_Store
 node_modules/
+
+# Brooks corpus data (generated, do not commit)
+data/
