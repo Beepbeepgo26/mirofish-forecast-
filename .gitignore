@@ -16,3 +16,4 @@ node_modules/
 
 # Brooks corpus data (generated, do not commit)
 data/
+brooks_extract.log
