@@ -4,6 +4,21 @@ export interface AgentDecision {
   confidence: number
   price_target: number | null
   reasoning: string
+  cot_reasoning: string | null
+}
+
+export interface BrooksAnalog {
+  page_number: number
+  pattern_type: string
+  direction: string
+  outcome: string
+  probability: string
+  always_in_direction: string
+  day_type: string
+  brooks_concepts: string[]
+  similarity_score: number
+  gcs_jpg_path: string
+  analysis_summary: string
 }
 
 export interface ProbabilityDistribution {
@@ -48,6 +63,8 @@ export interface ForecastResult {
   pipeline_duration_seconds: number
   build_method: string
   calibration?: CalibrationMetrics
+  agent_cot?: Record<string, string>
+  agent_analogs?: Record<string, BrooksAnalog[]>
 }
 
 export type SimPreset = 'simple' | 'quick' | 'standard' | 'deep'

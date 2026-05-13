@@ -1,11 +1,19 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useForecastStore } from '@/stores/forecastStore'
+import type { BrooksAnalog } from '@/types/forecast'
+import AnalogCard from '@/components/AnalogCard.vue'
+import AnalogLightbox from '@/components/AnalogLightbox.vue'
 
 const store = useForecastStore()
 const activeAgent = ref<'institutional' | 'retail' | 'market_maker'>(
   'institutional',
 )
+const showCot = ref(false)
+
+// Lightbox state
+const lightboxAnalog = ref<BrooksAnalog | null>(null)
+const lightboxUrl = ref<string | null>(null)
 
 const latestForecast = computed(() => {
   const results = store.history.filter((e) => e.type === 'result' && e.result)
@@ -37,6 +45,16 @@ function getReasoningText(agentKey: string): string {
   }
 }
 
+function getCotText(agentKey: string): string | null {
+  if (!latestForecast.value?.agent_cot) return null
+  return latestForecast.value.agent_cot[agentKey] || null
+}
+
+function getAnalogs(agentKey: string): BrooksAnalog[] {
+  if (!latestForecast.value?.agent_analogs) return []
+  return (latestForecast.value.agent_analogs[agentKey] || []) as BrooksAnalog[]
+}
+
 function getDirection(
   reasoning: string,
 ): 'bullish' | 'bearish' | 'neutral' {
@@ -60,6 +78,16 @@ function getConfidence(reasoning: string): string | null {
   const match = reasoning.match(/\((\d+)%\)/)
   return match ? match[1] + '%' : null
 }
+
+function openLightbox(analog: BrooksAnalog, url: string) {
+  lightboxAnalog.value = analog
+  lightboxUrl.value = url
+}
+
+function closeLightbox() {
+  lightboxAnalog.value = null
+  lightboxUrl.value = null
+}
 </script>
 
 <template>
@@ -76,7 +104,7 @@ function getConfidence(reasoning: string): string | null {
             ? 'text-[#2962FF] border-b-2 border-[#2962FF] bg-[#2962FF]/5'
             : 'text-[#6b7280] hover:text-[#9ca3af] hover:bg-[#1a1a24]',
         ]"
-        @click="activeAgent = agent.key"
+        @click="activeAgent = agent.key; showCot = false"
       >
         <span>{{ agent.icon }}</span>
         <span>{{ agent.label }}</span>
@@ -115,6 +143,44 @@ function getConfidence(reasoning: string): string | null {
           {{ getReasoningText(activeAgent) }}
         </p>
 
+        <!-- CoT Reasoning (collapsible) -->
+        <div v-if="getCotText(activeAgent)" class="mt-4">
+          <button
+            class="flex items-center gap-1.5 text-xs text-[#2962FF] hover:text-[#5c85ff]
+                   transition-colors"
+            @click="showCot = !showCot"
+          >
+            <span>{{ showCot ? '▾' : '▸' }}</span>
+            <span>{{ showCot ? 'Hide' : 'Show' }} full reasoning</span>
+          </button>
+          <div
+            v-if="showCot"
+            class="mt-2 p-3 rounded-lg bg-[#111118] border border-[#2e2e3e]
+                   text-xs text-[#9ca3af] leading-relaxed whitespace-pre-line
+                   max-h-[200px] overflow-y-auto"
+          >
+            {{ getCotText(activeAgent) }}
+          </div>
+        </div>
+
+        <!-- Historical Analogs -->
+        <div
+          v-if="getAnalogs(activeAgent).length > 0"
+          class="mt-4 pt-3 border-t border-[#2e2e3e]"
+        >
+          <div class="text-xs font-medium text-[#6b7280] mb-2">
+            Historical Analogs ({{ getAnalogs(activeAgent).length }})
+          </div>
+          <div class="flex gap-2 overflow-x-auto pb-2">
+            <AnalogCard
+              v-for="analog in getAnalogs(activeAgent)"
+              :key="analog.page_number"
+              :analog="analog"
+              @click="openLightbox"
+            />
+          </div>
+        </div>
+
         <!-- Metadata -->
         <div
           class="mt-4 pt-3 border-t border-[#2e2e3e] flex items-center gap-3 text-xs text-[#6b7280]"
@@ -140,5 +206,13 @@ function getConfidence(reasoning: string): string | null {
         </div>
       </template>
     </div>
+
+    <!-- Lightbox -->
+    <AnalogLightbox
+      v-if="lightboxAnalog && lightboxUrl"
+      :analog="lightboxAnalog"
+      :signed-url="lightboxUrl"
+      @close="closeLightbox"
+    />
   </div>
 </template>

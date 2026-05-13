@@ -183,7 +183,7 @@ class ForecastPipeline:
             )
 
             # Brooks RAG retrieval (per-agent analogs)
-            agent_analog_blocks = self._retrieve_brooks_analogs(
+            agent_analog_blocks, agent_raw_analogs = self._retrieve_brooks_analogs(
                 analytics_text, forecast_id,
             )
 
@@ -241,6 +241,7 @@ class ForecastPipeline:
                 sim_preset=query.sim_preset.value,
                 pipeline_start_time=pipeline_start,
                 session_info=session,
+                agent_raw_analogs=agent_raw_analogs,
             )
             self._emit_stage_complete(
                 constants.STAGE_SYNTHESIS,
@@ -475,32 +476,39 @@ class ForecastPipeline:
         self,
         analytics_text: str,
         forecast_id: str,
-    ) -> dict[str, str]:
+    ) -> tuple[dict[str, str], dict[str, list[dict]]]:
         """Retrieve Brooks analogs for each agent and return formatted blocks.
 
         Embeds query context once, retrieves per-agent analogs in parallel,
-        and returns a dict mapping agent_type to formatted prompt blocks.
+        and returns a dict mapping agent_type to formatted prompt blocks,
+        plus a dict of raw analog data for UI display.
 
-        Falls back gracefully: returns empty strings on any failure.
+        Falls back gracefully: returns empty strings/lists on any failure.
 
         Args:
             analytics_text: Pre-computed analytics text as query context.
             forecast_id: For structured logging.
 
         Returns:
-            Dict mapping agent_type to formatted ``<historical_analogs>``
-            block (empty string if retrieval failed or unavailable).
+            Tuple of:
+                - Dict mapping agent_type to formatted ``<historical_analogs>`` block
+                - Dict mapping agent_type to list of serialized BrooksAnalog dicts
         """
         empty_blocks: dict[str, str] = {
             "institutional": "",
             "market_maker": "",
             "retail": "",
         }
+        empty_analogs: dict[str, list[dict]] = {
+            "institutional": [],
+            "market_maker": [],
+            "retail": [],
+        }
 
         # Check if Upstash Vector is configured
         if not self._settings.upstash_vector_url or not self._settings.upstash_vector_token:
             logger.debug("Brooks RAG skipped: Upstash Vector not configured")
-            return empty_blocks
+            return empty_blocks, empty_analogs
 
         try:
             import asyncio
@@ -594,15 +602,21 @@ class ForecastPipeline:
                 },
             )
 
-            return {
+            blocks = {
                 "institutional": format_analogs_for_prompt(inst_analogs),
                 "market_maker": format_analogs_for_prompt(mm_analogs),
                 "retail": format_analogs_for_prompt(retail_analogs),
             }
+            raw_analogs = {
+                "institutional": [a.model_dump() for a in inst_analogs],
+                "market_maker": [a.model_dump() for a in mm_analogs],
+                "retail": [a.model_dump() for a in retail_analogs],
+            }
+            return blocks, raw_analogs
 
         except Exception as e:
             logger.warning(f"Brooks RAG retrieval failed: {e}")
-            return empty_blocks
+            return empty_blocks, empty_analogs
 
     def _get_cross_asset_returns(self) -> dict[str, float]:
         """Compute 1-day returns for DXY, TLT, CL from yfinance.

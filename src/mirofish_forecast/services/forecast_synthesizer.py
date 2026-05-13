@@ -46,6 +46,7 @@ class ForecastSynthesizer:
         sim_preset: str,
         pipeline_start_time: float,
         session_info: object | None = None,
+        agent_raw_analogs: dict[str, list[dict]] | None = None,
     ) -> ForecastResult:
         """Aggregate simulation results and produce the final forecast.
 
@@ -112,6 +113,7 @@ class ForecastSynthesizer:
         # Extract representative agent reasoning (from median-priced simulation)
         median_sim = self._find_median_simulation(successful, distribution.median)
         inst_reasoning, retail_reasoning, mm_reasoning = self._extract_agent_reasoning(median_sim)
+        agent_cot = self._extract_agent_cot(median_sim)
 
         # Generate natural language forecast via GPT-4o
         forecast_text = self._generate_forecast_text(
@@ -142,6 +144,8 @@ class ForecastSynthesizer:
             market_maker_reasoning=mm_reasoning,
             created_at=datetime.utcnow(),
             pipeline_duration_seconds=duration,
+            agent_cot=agent_cot,
+            agent_analogs=agent_raw_analogs or {},
         )
 
     def _generate_forecast_text(
@@ -287,6 +291,17 @@ class ForecastSynthesizer:
             else "No data",
             f"{mm.direction} ({mm.confidence:.0%}): {mm.reasoning}" if mm else "No data",
         )
+
+    def _extract_agent_cot(self, sim: SimulationResult | None) -> dict[str, str]:
+        """Extract full CoT reasoning from the median simulation's agents."""
+        if sim is None or not sim.agent_decisions:
+            return {}
+
+        cot: dict[str, str] = {}
+        for d in sim.agent_decisions:
+            if d.cot_reasoning:
+                cot[d.agent_type] = d.cot_reasoning
+        return cot
 
     def _error_forecast(self, **kwargs: object) -> ForecastResult:
         """Generate an error forecast when not enough simulations succeed."""

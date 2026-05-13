@@ -13,6 +13,7 @@ class AgentDecision(MiroFishBaseModel):
     confidence: float  # 0.0 to 1.0
     price_target: float | None = None
     reasoning: str = ""
+    cot_reasoning: str | None = None         # Full CoT from Call 1 (Phase 6)
     signal_bar_score: int | None = None      # Brooks 0–100 rubric score (None if unavailable)
     regime: str | None = None                # TREND | RANGE | BREAKOUT | REVERSAL
     time_horizon_bars: int | None = None     # Bars until agent expects resolution
@@ -92,6 +93,10 @@ class ForecastResult(MiroFishBaseModel):
     created_at: datetime
     pipeline_duration_seconds: float
     build_method: str = "monte_carlo"  # "monte_carlo" or "single_shot"
+
+    # Agent CoT + analog data (Phase 6)
+    agent_cot: dict[str, str] = {}  # {agent_type: cot_reasoning}
+    agent_analogs: dict[str, list[dict]] = {}  # {agent_type: [analog_dict, ...]}
 
     # Calibration (Phase 5)
     calibration: CalibrationMetrics = CalibrationMetrics()

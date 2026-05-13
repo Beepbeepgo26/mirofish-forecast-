@@ -6,6 +6,7 @@ setup_logging()
 
 from flask import Flask, send_from_directory
 
+from mirofish_forecast.api.brooks_routes import brooks_bp
 from mirofish_forecast.api.forecast_routes import forecast_bp
 from mirofish_forecast.api.health import health_bp
 from mirofish_forecast.api.market_routes import market_bp
@@ -39,6 +40,7 @@ def create_app() -> Flask:
     app.register_blueprint(market_bp, url_prefix="/api/market")
     app.register_blueprint(forecast_bp, url_prefix="/api/forecast")
     app.register_blueprint(ml_bp, url_prefix="/api/ml")
+    app.register_blueprint(brooks_bp, url_prefix="/api/brooks")
 
     # Serve Vue SPA — catch-all for non-API routes
     @app.route("/", defaults={"path": ""})

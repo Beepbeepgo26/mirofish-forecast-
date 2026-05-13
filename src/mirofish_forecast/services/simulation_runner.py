@@ -787,6 +787,7 @@ class MonteCarloRunner:
                         else None
                     ),
                     reasoning=data.get("reasoning", ""),
+                    cot_reasoning=cot_reasoning,
                     signal_bar_score=int(data.get("signal_bar_score", signal_bar_score)),
                     regime=data.get("regime"),
                     time_horizon_bars=data.get("time_horizon_bars"),
@@ -802,5 +803,6 @@ class MonteCarloRunner:
                     confidence=0.55,
                     price_target=current_price,
                     reasoning=f"Fallback from CoT — extract failed: {str(e)[:50]}",
+                    cot_reasoning=cot_reasoning,
                     signal_bar_score=signal_bar_score,
                 )
