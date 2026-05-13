@@ -1,4 +1,11 @@
+import logging
 import os
+
+# Configure root logger so app loggers (INFO+) emit to stdout/Cloud Logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(name)s %(message)s",
+)
 
 from flask import Flask, send_from_directory
 
