@@ -7,6 +7,7 @@ loaded from the local enriched JSONL.
 
 import json
 import logging
+import re
 from pathlib import Path
 
 from openai import OpenAI
@@ -20,14 +21,39 @@ logger = logging.getLogger(__name__)
 # Default path for the enriched JSONL (analysis summary source)
 _DEFAULT_ENRICHED_PATH = Path("data/brooks_corpus_enriched.jsonl")
 
-# In-memory cache: page_number -> first 200 chars of analysis_text
+# In-memory cache: page_number -> cleaned first 400 chars of analysis_text
 _analysis_cache: dict[int, str] = {}
+
+# Patterns for Gemma boilerplate stripping
+_RE_HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+_RE_HEADER_LINE = re.compile(r"^#{1,3}\s.*$", re.MULTILINE)
+
+
+def _strip_boilerplate(text: str) -> str:
+    """Remove Gemma-generated boilerplate from analysis text.
+
+    Strips HTML comments (``<!-- ... -->``) and leading markdown headers
+    (``# ...``, ``## ...``, ``### ...``) so the cached summary starts
+    with actual analytical content.
+
+    Args:
+        text: Raw analysis_text from enriched JSONL.
+
+    Returns:
+        Cleaned text with boilerplate removed and whitespace normalized.
+    """
+    text = _RE_HTML_COMMENT.sub("", text)
+    text = _RE_HEADER_LINE.sub("", text)
+    # Collapse leftover blank lines and strip leading/trailing whitespace
+    text = re.sub(r"\n{2,}", "\n", text).strip()
+    return text
 
 
 def _load_analysis_cache(enriched_path: Path | None = None) -> None:
     """Load analysis summaries from enriched JSONL into memory.
 
     Called once on first retrieval. Subsequent calls are no-ops.
+    Strips Gemma boilerplate headers before truncating to 400 chars.
 
     Args:
         enriched_path: Path to enriched JSONL file.
@@ -49,7 +75,8 @@ def _load_analysis_cache(enriched_path: Path | None = None) -> None:
             data = json.loads(line)
             page_num = data["page_number"]
             analysis = data.get("analysis_text", "")
-            _analysis_cache[page_num] = analysis[:200]
+            cleaned = _strip_boilerplate(analysis)
+            _analysis_cache[page_num] = cleaned[:400]
             count += 1
 
     logger.info(f"Loaded {count} analysis summaries into cache")

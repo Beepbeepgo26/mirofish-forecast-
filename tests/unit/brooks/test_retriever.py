@@ -9,6 +9,7 @@ import pytest
 from mirofish_forecast.brooks.retriever import (
     _analysis_cache,
     _load_analysis_cache,
+    _strip_boilerplate,
     embed_query_context,
     retrieve_analogs,
 )
@@ -38,7 +39,7 @@ def enriched_jsonl(tmp_path: Path) -> Path:
             "key_levels": [],
             "brooks_concepts": ["AIL", "PB"],
             "ocr_text": "ocr",
-            "analysis_text": "A" * 300,  # 300 chars, will be truncated to 200
+            "analysis_text": "A" * 500,  # 500 chars, will be truncated to 400
         },
         {
             "page_number": 5,
@@ -171,8 +172,8 @@ class TestRetrieveAnalogs:
             enriched_path=enriched_jsonl,
         )
 
-        # Page 1 has 300 chars of 'A', truncated to 200
-        assert results[0].analysis_summary == "A" * 200
+        # Page 1 has 500 chars of 'A', truncated to 400
+        assert results[0].analysis_summary == "A" * 400
         # Page 5 has short analysis
         assert results[1].analysis_summary == "Short analysis."
 
@@ -183,7 +184,7 @@ class TestLoadAnalysisCache:
 
         assert 1 in _analysis_cache
         assert 5 in _analysis_cache
-        assert len(_analysis_cache[1]) == 200  # truncated to 200
+        assert len(_analysis_cache[1]) == 400  # truncated to 400
 
     def test_no_op_on_second_call(self, enriched_jsonl: Path) -> None:
         _load_analysis_cache(enriched_jsonl)
@@ -194,3 +195,73 @@ class TestLoadAnalysisCache:
     def test_handles_missing_file(self, tmp_path: Path) -> None:
         _load_analysis_cache(tmp_path / "nonexistent.jsonl")
         assert len(_analysis_cache) == 0
+
+    def test_strips_boilerplate_and_truncates(self, tmp_path: Path) -> None:
+        """Confirm Gemma header boilerplate is stripped before truncation."""
+        p = tmp_path / "boilerplate.jsonl"
+        raw_analysis = (
+            "<!-- Page 3439 Analysis | Source: page_3439.jpg "
+            "| Model: gemma-4-31b-it -->\n\n"
+            "# Page 3439 — Deep Analysis\n\n"
+            "## Macro Context\n"
+            "The overall market structure is a **Strong Bull Trend** "
+            "originating from the open. Price broke above the "
+            "previous day's high within the first 15 minutes, "
+            "establishing a bull trend from the open pattern. "
+            "The always-in direction is long. "
+            "EMA-20 slope is strongly positive. "
+            "VWAP held as support on the first pullback. "
+            "This is a classic Brooks trend day setup."
+        )
+        record = {
+            "page_number": 3439,
+            "source_jpg": "page_3439.jpg",
+            "pattern_type": "bull_trend",
+            "direction": "long",
+            "probability": "high",
+            "outcome": "success",
+            "always_in_direction": "AIL",
+            "day_type": "trend",
+            "key_levels": [],
+            "brooks_concepts": ["AIL"],
+            "ocr_text": "ocr",
+            "analysis_text": raw_analysis,
+        }
+        p.write_text(json.dumps(record))
+
+        _load_analysis_cache(p)
+
+        cached = _analysis_cache[3439]
+        # Boilerplate stripped
+        assert "<!--" not in cached
+        assert "# Page 3439" not in cached
+        assert "## Macro Context" not in cached
+        # Actual content preserved
+        assert cached.startswith("The overall market structure")
+        # Length capped at 400
+        assert len(cached) <= 400
+
+
+class TestStripBoilerplate:
+    def test_strips_html_comments(self) -> None:
+        text = "<!-- comment -->Real content"
+        assert _strip_boilerplate(text) == "Real content"
+
+    def test_strips_markdown_headers(self) -> None:
+        text = "# Title\n## Subtitle\nActual text"
+        result = _strip_boilerplate(text)
+        assert "# Title" not in result
+        assert "## Subtitle" not in result
+        assert "Actual text" in result
+
+    def test_strips_multiline_comment(self) -> None:
+        text = "<!-- multi\nline\ncomment -->Content"
+        assert _strip_boilerplate(text) == "Content"
+
+    def test_collapses_blank_lines(self) -> None:
+        text = "<!-- removed -->\n\n\n\nContent here"
+        assert _strip_boilerplate(text) == "Content here"
+
+    def test_preserves_content_without_boilerplate(self) -> None:
+        text = "Clean text with no boilerplate."
+        assert _strip_boilerplate(text) == "Clean text with no boilerplate."
