@@ -18,3 +18,4 @@ node_modules/
 data/
 brooks_extract.log
 brooks_upload.log
+brooks_index.log

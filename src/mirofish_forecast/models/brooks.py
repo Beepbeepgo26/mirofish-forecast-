@@ -39,3 +39,23 @@ class BrooksEnrichedPage(MiroFishBaseModel):
     brooks_concepts: list[str]  # AIS, MTR, BLSHS, FBO, etc.
     ocr_text: str
     analysis_text: str
+
+
+class BrooksAnalog(MiroFishBaseModel):
+    """A retrieved analog from the Brooks vector index.
+
+    Represents a historical chart pattern that is similar to the current
+    bar context, returned by the retriever for agent prompt injection.
+    """
+
+    page_number: int
+    pattern_type: str
+    direction: str
+    outcome: str
+    probability: str
+    always_in_direction: str
+    day_type: str
+    brooks_concepts: list[str]
+    similarity_score: float
+    gcs_jpg_path: str  # gs:// path, not signed URL
+    analysis_summary: str  # first 200 chars of analysis_text
