@@ -1,0 +1,25 @@
+# .gcloudignore — controls what gcloud builds submit uploads
+# Base on .gitignore, but include data/brooks_corpus_enriched.jsonl for Docker COPY
+
+.git
+.venv
+.ruff_cache
+.pytest_cache
+__pycache__
+*.pyc
+node_modules
+frontend/node_modules
+
+# Brooks corpus data (exclude everything except the enriched JSONL)
+data/brooks_corpus_raw.jsonl
+data/brooks_ocr/
+data/*.log
+brooks_extract.log
+brooks_upload.log
+brooks_index.log
+
+# Other ignores from .gitignore
+.env
+*.egg-info
+dist/
+build/
