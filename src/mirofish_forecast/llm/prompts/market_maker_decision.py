@@ -38,6 +38,7 @@ Prior decisions this simulation: {prior_decisions}
 
 {instrument_price_guidance}
 
+{historical_analogs}
 === YOUR 8-STEP ANALYSIS ===
 Work through each step. Be specific and quantitative. Do not skip steps.
 

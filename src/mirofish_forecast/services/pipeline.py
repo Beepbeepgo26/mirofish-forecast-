@@ -182,6 +182,11 @@ class ForecastPipeline:
                 },
             )
 
+            # Brooks RAG retrieval (per-agent analogs)
+            agent_analog_blocks = self._retrieve_brooks_analogs(
+                analytics_text, forecast_id,
+            )
+
             # Stage 4: Run Monte Carlo simulations
             if self._is_cancelled():
                 self._emit_cancel()
@@ -210,6 +215,7 @@ class ForecastPipeline:
                 session_levels_text=levels_text,
                 price_bars_text=bars_text,
                 analytics_text=analytics_text,
+                agent_analog_blocks=agent_analog_blocks,
             )
 
             success_count = sum(1 for r in sim_results if r.success)
@@ -464,6 +470,133 @@ class ForecastPipeline:
             return False
 
         return True
+
+    def _retrieve_brooks_analogs(
+        self,
+        analytics_text: str,
+        forecast_id: str,
+    ) -> dict[str, str]:
+        """Retrieve Brooks analogs for each agent and return formatted blocks.
+
+        Embeds query context once, retrieves per-agent analogs in parallel,
+        and returns a dict mapping agent_type to formatted prompt blocks.
+
+        Falls back gracefully: returns empty strings on any failure.
+
+        Args:
+            analytics_text: Pre-computed analytics text as query context.
+            forecast_id: For structured logging.
+
+        Returns:
+            Dict mapping agent_type to formatted ``<historical_analogs>``
+            block (empty string if retrieval failed or unavailable).
+        """
+        empty_blocks: dict[str, str] = {
+            "institutional": "",
+            "market_maker": "",
+            "retail": "",
+        }
+
+        # Check if Upstash Vector is configured
+        if not self._settings.upstash_vector_url or not self._settings.upstash_vector_token:
+            logger.debug("Brooks RAG skipped: Upstash Vector not configured")
+            return empty_blocks
+
+        try:
+            import asyncio
+
+            from openai import OpenAI
+            from upstash_vector import Index
+
+            from mirofish_forecast.brooks.agent_retrieval import (
+                retrieve_agent_analogs,
+            )
+            from mirofish_forecast.brooks.prompt_formatting import (
+                format_analogs_for_prompt,
+            )
+            from mirofish_forecast.brooks.retriever import embed_query_context
+
+            openai_client = OpenAI(api_key=self._settings.openai_api_key)
+            vector_client = Index(
+                url=self._settings.upstash_vector_url,
+                token=self._settings.upstash_vector_token,
+            )
+
+            # Embed query context ONCE (shared across all agents)
+            embedding = embed_query_context(openai_client, analytics_text)
+
+            async def _retrieve_all() -> tuple[
+                tuple[list, dict], tuple[list, dict], tuple[list, dict]
+            ]:
+                return await asyncio.gather(
+                    retrieve_agent_analogs(
+                        "institutional", analytics_text,
+                        vector_client, openai_client,
+                        precomputed_embedding=embedding,
+                    ),
+                    retrieve_agent_analogs(
+                        "market_maker", analytics_text,
+                        vector_client, openai_client,
+                        precomputed_embedding=embedding,
+                    ),
+                    retrieve_agent_analogs(
+                        "retail", analytics_text,
+                        vector_client, openai_client,
+                        precomputed_embedding=embedding,
+                    ),
+                )
+
+            # Run async retrieval
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    future = pool.submit(asyncio.run, _retrieve_all())
+                    inst_result, mm_result, retail_result = future.result(timeout=10)
+            else:
+                inst_result, mm_result, retail_result = asyncio.run(
+                    _retrieve_all()
+                )
+
+            inst_analogs, inst_telemetry = inst_result
+            mm_analogs, mm_telemetry = mm_result
+            retail_analogs, retail_telemetry = retail_result
+
+            # Log structured telemetry
+            total_latency = max(
+                inst_telemetry["retrieval_latency_ms"],
+                mm_telemetry["retrieval_latency_ms"],
+                retail_telemetry["retrieval_latency_ms"],
+            )
+            logger.info(
+                "brooks_rag_retrieval",
+                extra={
+                    "forecast_id": forecast_id,
+                    "agent_telemetry": [
+                        inst_telemetry, mm_telemetry, retail_telemetry,
+                    ],
+                    "total_retrieval_latency_ms": round(total_latency, 1),
+                    "analogs_total": (
+                        inst_telemetry["analogs_retrieved"]
+                        + mm_telemetry["analogs_retrieved"]
+                        + retail_telemetry["analogs_retrieved"]
+                    ),
+                },
+            )
+
+            return {
+                "institutional": format_analogs_for_prompt(inst_analogs),
+                "market_maker": format_analogs_for_prompt(mm_analogs),
+                "retail": format_analogs_for_prompt(retail_analogs),
+            }
+
+        except Exception as e:
+            logger.warning(f"Brooks RAG retrieval failed: {e}")
+            return empty_blocks
 
     def _get_cross_asset_returns(self) -> dict[str, float]:
         """Compute 1-day returns for DXY, TLT, CL from yfinance.

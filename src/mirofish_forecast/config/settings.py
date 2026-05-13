@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     # Calibration
     calibration_enabled: bool = True
 
+    # Upstash Vector (Brooks RAG)
+    upstash_vector_url: str = ""
+    upstash_vector_token: str = ""
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

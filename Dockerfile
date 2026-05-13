@@ -35,6 +35,9 @@ COPY src/ src/
 COPY gunicorn.conf.py .
 COPY --from=frontend-builder /frontend/dist frontend/dist/
 
+# Brooks corpus enriched data for RAG retrieval summary lookup
+COPY data/brooks_corpus_enriched.jsonl data/brooks_corpus_enriched.jsonl
+
 # Create non-root user
 RUN useradd --create-home appuser
 USER appuser

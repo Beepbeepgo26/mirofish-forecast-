@@ -74,6 +74,7 @@ class MonteCarloRunner:
         session_levels_text: str = "",
         price_bars_text: str = "",
         analytics_text: str = "",
+        agent_analog_blocks: dict[str, str] | None = None,
     ) -> list[SimulationResult]:
         """Run Monte Carlo simulations. Blocks until all complete.
 
@@ -107,13 +108,14 @@ class MonteCarloRunner:
                 future = pool.submit(
                     self._run_in_new_loop, scenario, sim_count, progress_callback,
                     session, bar_analytics, session_levels_text, price_bars_text,
-                    analytics_text,
+                    analytics_text, agent_analog_blocks,
                 )
                 return future.result()
         else:
             return self._run_in_new_loop(
                 scenario, sim_count, progress_callback, session,
                 bar_analytics, session_levels_text, price_bars_text, analytics_text,
+                agent_analog_blocks,
             )
 
     def _run_in_new_loop(
@@ -126,6 +128,7 @@ class MonteCarloRunner:
         session_levels_text: str = "",
         price_bars_text: str = "",
         analytics_text: str = "",
+        agent_analog_blocks: dict[str, str] | None = None,
     ) -> list[SimulationResult]:
         """Run async simulations in a fresh event loop."""
         loop = asyncio.new_event_loop()
@@ -134,7 +137,7 @@ class MonteCarloRunner:
                 self._run_async(
                     scenario, sim_count, progress_callback, session,
                     bar_analytics, session_levels_text, price_bars_text,
-                    analytics_text,
+                    analytics_text, agent_analog_blocks,
                 )
             )
         finally:
@@ -150,6 +153,7 @@ class MonteCarloRunner:
         session_levels_text: str = "",
         price_bars_text: str = "",
         analytics_text: str = "",
+        agent_analog_blocks: dict[str, str] | None = None,
     ) -> list[SimulationResult]:
         """Async core — manages semaphores and wave-based batching."""
         sim_semaphore = asyncio.Semaphore(constants.SIM_CONCURRENCY)
@@ -167,6 +171,7 @@ class MonteCarloRunner:
                     session_levels_text=session_levels_text,
                     price_bars_text=price_bars_text,
                     analytics_text=analytics_text,
+                    agent_analog_blocks=agent_analog_blocks,
                 )
                 async with lock:
                     completed += 1
@@ -199,6 +204,7 @@ class MonteCarloRunner:
         session_levels_text: str = "",
         price_bars_text: str = "",
         analytics_text: str = "",
+        agent_analog_blocks: dict[str, str] | None = None,
     ) -> SimulationResult:
         """Run one full simulation across all bars."""
         from mirofish_forecast.config.constants import get_instrument_config
@@ -252,6 +258,7 @@ class MonteCarloRunner:
                 }
 
                 # All 3 agents decide concurrently (each uses TWO LLM calls internally)
+                _blocks = agent_analog_blocks or {}
                 decisions = await asyncio.gather(
                     self._agent_decision(
                         "institutional",
@@ -276,6 +283,7 @@ class MonteCarloRunner:
                         session_levels_text=session_levels_text,
                         price_bars_text=price_bars_text,
                         analytics_text=analytics_text,
+                        historical_analogs=_blocks.get("institutional", ""),
                     ),
                     self._agent_decision(
                         "retail",
@@ -300,6 +308,7 @@ class MonteCarloRunner:
                         session_levels_text=session_levels_text,
                         price_bars_text=price_bars_text,
                         analytics_text=analytics_text,
+                        historical_analogs=_blocks.get("retail", ""),
                     ),
                     self._agent_decision(
                         "market_maker",
@@ -324,6 +333,7 @@ class MonteCarloRunner:
                         session_levels_text=session_levels_text,
                         price_bars_text=price_bars_text,
                         analytics_text=analytics_text,
+                        historical_analogs=_blocks.get("market_maker", ""),
                     ),
                     return_exceptions=True,
                 )
@@ -645,6 +655,7 @@ class MonteCarloRunner:
         session_levels_text: str = "",
         price_bars_text: str = "",
         analytics_text: str = "",
+        historical_analogs: str = "",
     ) -> AgentDecision:
         """Get a single agent's decision using two-call CoT architecture.
 
@@ -694,6 +705,8 @@ class MonteCarloRunner:
             session_levels=session_levels_text or "Not available",
             bar_analytics=analytics_text or "Not available",
             price_bars=price_bars_text or "Not available",
+            # Brooks RAG analogs (empty string = no block in prompt)
+            historical_analogs=historical_analogs,
         )
 
         async with api_semaphore:
