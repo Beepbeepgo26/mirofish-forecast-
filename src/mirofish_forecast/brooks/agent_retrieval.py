@@ -80,7 +80,7 @@ async def retrieve_agent_analogs(
     *,
     top_k: int = 5,
     max_per_pattern_type: int = 2,
-    timeout_seconds: float = 2.0,
+    timeout_seconds: float = 5.0,
     precomputed_embedding: list[float] | None = None,
 ) -> tuple[list[BrooksAnalog], dict[str, object]]:
     """Retrieve Brooks analogs filtered for a specific agent role.

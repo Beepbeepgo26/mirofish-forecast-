@@ -514,7 +514,13 @@ class ForecastPipeline:
             from mirofish_forecast.brooks.prompt_formatting import (
                 format_analogs_for_prompt,
             )
-            from mirofish_forecast.brooks.retriever import embed_query_context
+            from mirofish_forecast.brooks.retriever import (
+                _load_analysis_cache,
+                embed_query_context,
+            )
+
+            # Pre-warm analysis cache (no-op after first call)
+            _load_analysis_cache()
 
             openai_client = OpenAI(api_key=self._settings.openai_api_key)
             vector_client = Index(
