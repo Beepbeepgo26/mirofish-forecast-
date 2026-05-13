@@ -578,20 +578,21 @@ class ForecastPipeline:
                 mm_telemetry["retrieval_latency_ms"],
                 retail_telemetry["retrieval_latency_ms"],
             )
+            telemetry_data = {
+                "forecast_id": forecast_id,
+                "agent_telemetry": [
+                    inst_telemetry, mm_telemetry, retail_telemetry,
+                ],
+                "total_retrieval_latency_ms": round(total_latency, 1),
+                "analogs_total": (
+                    inst_telemetry["analogs_retrieved"]
+                    + mm_telemetry["analogs_retrieved"]
+                    + retail_telemetry["analogs_retrieved"]
+                ),
+            }
             logger.info(
-                "brooks_rag_retrieval",
-                extra={
-                    "forecast_id": forecast_id,
-                    "agent_telemetry": [
-                        inst_telemetry, mm_telemetry, retail_telemetry,
-                    ],
-                    "total_retrieval_latency_ms": round(total_latency, 1),
-                    "analogs_total": (
-                        inst_telemetry["analogs_retrieved"]
-                        + mm_telemetry["analogs_retrieved"]
-                        + retail_telemetry["analogs_retrieved"]
-                    ),
-                },
+                "brooks_rag_retrieval %s",
+                json.dumps(telemetry_data, default=str),
             )
 
             return {
