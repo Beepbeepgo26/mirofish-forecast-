@@ -1,11 +1,8 @@
-import logging
 import os
 
-# Configure root logger so app loggers (INFO+) emit to stdout/Cloud Logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(name)s %(message)s",
-)
+from mirofish_forecast.utils.logging import setup_logging
+
+setup_logging()
 
 from flask import Flask, send_from_directory
 
