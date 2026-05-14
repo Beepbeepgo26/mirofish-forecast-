@@ -158,9 +158,7 @@ def compute_calibration_summary(forecasts: list[ForecastTracking]) -> dict:
     ]
     if directional_forecasts:
         dir_correct_confident = sum(1 for f in directional_forecasts if f.direction_correct)
-        direction_accuracy_confident = round(
-            dir_correct_confident / len(directional_forecasts), 4
-        )
+        direction_accuracy_confident = round(dir_correct_confident / len(directional_forecasts), 4)
         direction_confident_count = len(directional_forecasts)
     else:
         direction_accuracy_confident = None

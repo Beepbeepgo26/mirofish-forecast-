@@ -5,10 +5,10 @@ import logging
 
 from flask import Blueprint, current_app, jsonify, request
 
-from mirofish_forecast.data.cache import CacheClient
-from mirofish_forecast.services.data_aggregator import DataAggregator
-from mirofish_forecast.data.databento_client import DatabentoClient
 from mirofish_forecast.config import constants
+from mirofish_forecast.data.cache import CacheClient
+from mirofish_forecast.data.databento_client import DatabentoClient
+from mirofish_forecast.services.data_aggregator import DataAggregator
 
 logger = logging.getLogger(__name__)
 
@@ -77,13 +77,15 @@ def get_ohlcv():
             if db_bars:
                 # We do not cache databento bars in the ohlcv: endpoint cache
                 # because Redis sorted sets hold the true state and are ultra-fast.
-                return jsonify({
-                    "instrument": instrument,
-                    "interval": interval,
-                    "count": len(db_bars),
-                    "bars": db_bars,
-                    "source": "databento",
-                })
+                return jsonify(
+                    {
+                        "instrument": instrument,
+                        "interval": interval,
+                        "count": len(db_bars),
+                        "bars": db_bars,
+                        "source": "databento",
+                    }
+                )
 
     try:
         import yfinance as yf

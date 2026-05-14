@@ -1,9 +1,10 @@
 """Tests for pipeline path routing priority."""
 
 from unittest.mock import MagicMock
+
 from mirofish_forecast.config.settings import Settings
-from mirofish_forecast.services.pipeline import ForecastPipeline
 from mirofish_forecast.models.query import ForecastQuery, QueryType
+from mirofish_forecast.services.pipeline import ForecastPipeline
 
 
 def make_settings():

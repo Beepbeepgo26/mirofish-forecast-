@@ -61,9 +61,9 @@ def _build_html(results: list[CheckResult]) -> str:
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111;">
       <h2 style="margin-bottom:4px">MiroFish Forecast — Daily Health Check</h2>
       <p style="color:#6b7280;margin-top:0">
-        {sum(1 for r in results if r.status == 'pass')} pass,
-        {sum(1 for r in results if r.status == 'warn')} warn,
-        {sum(1 for r in results if r.status == 'fail')} fail
+        {sum(1 for r in results if r.status == "pass")} pass,
+        {sum(1 for r in results if r.status == "warn")} warn,
+        {sum(1 for r in results if r.status == "fail")} fail
         — {len(results)} total checks
       </p>
       <table style="border-collapse:collapse;width:100%;font-size:13px">
@@ -77,7 +77,7 @@ def _build_html(results: list[CheckResult]) -> str:
           </tr>
         </thead>
         <tbody>
-          {''.join(rows)}
+          {"".join(rows)}
         </tbody>
       </table>
       <p style="color:#9ca3af;font-size:11px;margin-top:16px">

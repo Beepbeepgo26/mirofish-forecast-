@@ -1,6 +1,5 @@
 """Unit tests for Brooks embedder module."""
 
-import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -37,9 +36,7 @@ def sample_enriched_page() -> BrooksEnrichedPage:
 
 
 class TestBuildEmbeddingText:
-    def test_contains_structured_fields(
-        self, sample_enriched_page: BrooksEnrichedPage
-    ) -> None:
+    def test_contains_structured_fields(self, sample_enriched_page: BrooksEnrichedPage) -> None:
         text = build_embedding_text(sample_enriched_page)
         assert "Pattern: wedge_top" in text
         assert "Direction: short" in text
@@ -48,22 +45,16 @@ class TestBuildEmbeddingText:
         assert "Day Type: trend" in text
         assert "Always-In: AIS" in text
 
-    def test_contains_concepts(
-        self, sample_enriched_page: BrooksEnrichedPage
-    ) -> None:
+    def test_contains_concepts(self, sample_enriched_page: BrooksEnrichedPage) -> None:
         text = build_embedding_text(sample_enriched_page)
         assert "AIS, FBO, LH, PB, EMA" in text
 
-    def test_contains_analysis(
-        self, sample_enriched_page: BrooksEnrichedPage
-    ) -> None:
+    def test_contains_analysis(self, sample_enriched_page: BrooksEnrichedPage) -> None:
         text = build_embedding_text(sample_enriched_page)
         assert "Analysis:" in text
         assert "wedge top with three pushes" in text
 
-    def test_truncates_oversized_text(
-        self, sample_enriched_page: BrooksEnrichedPage
-    ) -> None:
+    def test_truncates_oversized_text(self, sample_enriched_page: BrooksEnrichedPage) -> None:
         # Create page with very long analysis
         long_page = BrooksEnrichedPage(
             page_number=99,
@@ -137,9 +128,7 @@ class TestEmbedText:
 
 
 class TestIndexPage:
-    def test_constructs_metadata_correctly(
-        self, sample_enriched_page: BrooksEnrichedPage
-    ) -> None:
+    def test_constructs_metadata_correctly(self, sample_enriched_page: BrooksEnrichedPage) -> None:
         vector_client = MagicMock()
         embedding = [0.1] * 1536
 
@@ -157,9 +146,7 @@ class TestIndexPage:
         assert vec["metadata"]["pattern_type"] == "wedge_top"
         assert vec["metadata"]["direction"] == "short"
 
-    def test_gcs_url_format(
-        self, sample_enriched_page: BrooksEnrichedPage
-    ) -> None:
+    def test_gcs_url_format(self, sample_enriched_page: BrooksEnrichedPage) -> None:
         vector_client = MagicMock()
         embedding = [0.1] * 1536
 

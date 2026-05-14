@@ -13,15 +13,15 @@ from datetime import datetime, timedelta
 import numpy as np
 
 from mirofish_forecast.config import constants
+from mirofish_forecast.config.settings import Settings
 from mirofish_forecast.data.cache import CacheClient
+from mirofish_forecast.data.databento_client import DatabentoClient
+from mirofish_forecast.ml.experiment_tracker import ExperimentTracker
 from mirofish_forecast.ml.feature_extractor import (
     FEATURE_NAMES,
     FeatureExtractor,
 )
-from mirofish_forecast.ml.experiment_tracker import ExperimentTracker
 from mirofish_forecast.ml.model_store import ModelStore
-from mirofish_forecast.data.databento_client import DatabentoClient
-from mirofish_forecast.config.settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,7 @@ class ModelTrainer:
         self._experiment = ExperimentTracker(cache)
         if settings is None:
             from flask import current_app
+
             settings = current_app.config["SETTINGS"]
         self._databento = DatabentoClient(settings, cache)
 
@@ -62,15 +63,17 @@ class ModelTrainer:
             self._experiment.start_run(
                 run_name=f"train_h{horizon_minutes}_{datetime.utcnow().strftime('%Y%m%d_%H%M')}"
             )
-            self._experiment.log_params({
-                "horizon_minutes": horizon_minutes,
-                "lookback_days": constants.ML_TRAINING_LOOKBACK_DAYS,
-                "min_samples": constants.ML_MIN_TRAINING_SAMPLES,
-                "direction_mode": constants.ML_DIRECTION_MODE,
-                "min_move_pct": constants.ML_DIRECTION_MIN_MOVE_PCT,
-                "confidence_threshold": constants.ML_DIRECTION_CONFIDENCE_THRESHOLD,
-                "feature_count": len(FEATURE_NAMES),
-            })
+            self._experiment.log_params(
+                {
+                    "horizon_minutes": horizon_minutes,
+                    "lookback_days": constants.ML_TRAINING_LOOKBACK_DAYS,
+                    "min_samples": constants.ML_MIN_TRAINING_SAMPLES,
+                    "direction_mode": constants.ML_DIRECTION_MODE,
+                    "min_move_pct": constants.ML_DIRECTION_MIN_MOVE_PCT,
+                    "confidence_threshold": constants.ML_DIRECTION_CONFIDENCE_THRESHOLD,
+                    "feature_count": len(FEATURE_NAMES),
+                }
+            )
 
             # Step 1: Fetch historical data
             logger.info("Fetching historical data for training...")
@@ -90,12 +93,14 @@ class ModelTrainer:
             closes, highs, lows, opens, volumes, dxy_closes, tlt_closes, crude_closes = data
             logger.info(f"Fetched {len(closes)} hourly bars")
 
-            self._experiment.log_params({
-                "training_bars": len(closes),
-                "has_dxy_data": bool(np.any(dxy_closes != 0)),
-                "has_tlt_data": bool(np.any(tlt_closes != 0)),
-                "has_crude_data": bool(np.any(crude_closes != 0)),
-            })
+            self._experiment.log_params(
+                {
+                    "training_bars": len(closes),
+                    "has_dxy_data": bool(np.any(dxy_closes != 0)),
+                    "has_tlt_data": bool(np.any(tlt_closes != 0)),
+                    "has_crude_data": bool(np.any(crude_closes != 0)),
+                }
+            )
 
             # Step 2: Build feature matrix + labels
             logger.info("Extracting features and labels...")
@@ -144,13 +149,15 @@ class ModelTrainer:
             x_all_train, x_all_test = x_all[:all_split], x_all[all_split:]
             y_ret_train, y_ret_test = y_ret[:all_split], y_ret[all_split:]
 
-            self._experiment.log_params({
-                "train_samples_dir": int(x_dir_train.shape[0]),
-                "test_samples_dir": int(x_dir_test.shape[0]),
-                "train_samples_all": int(x_all_train.shape[0]),
-                "test_samples_all": int(x_all_test.shape[0]),
-                "split_ratio": 0.8,
-            })
+            self._experiment.log_params(
+                {
+                    "train_samples_dir": int(x_dir_train.shape[0]),
+                    "test_samples_dir": int(x_dir_test.shape[0]),
+                    "train_samples_all": int(x_all_train.shape[0]),
+                    "test_samples_all": int(x_all_test.shape[0]),
+                    "split_ratio": 0.8,
+                }
+            )
 
             # Step 4: Train binary direction classifier (exclude cross-asset features)
             import lightgbm as lgb
@@ -178,7 +185,9 @@ class ModelTrainer:
             conf_count = int(np.sum(conf_mask_eval))
 
             if conf_count > 0:
-                conf_accuracy = float(np.mean(dir_preds[conf_mask_eval] == y_dir_test[conf_mask_eval]))
+                conf_accuracy = float(
+                    np.mean(dir_preds[conf_mask_eval] == y_dir_test[conf_mask_eval])
+                )
                 conf_pct = round(conf_count / len(dir_preds) * 100, 1)
             else:
                 conf_accuracy = 0.0
@@ -189,17 +198,18 @@ class ModelTrainer:
                 f"{conf_accuracy:.4f} (confidence-filtered, {conf_pct}% of predictions)"
             )
 
-            self._experiment.log_metrics({
-                "direction_accuracy": round(dir_accuracy, 4),
-                "confidence_filtered_accuracy": round(conf_accuracy, 4),
-                "confidence_filtered_pct": conf_pct,
-            })
+            self._experiment.log_metrics(
+                {
+                    "direction_accuracy": round(dir_accuracy, 4),
+                    "confidence_filtered_accuracy": round(conf_accuracy, 4),
+                    "confidence_filtered_pct": conf_pct,
+                }
+            )
 
             # Log direction model feature importance
             if hasattr(dir_model, "feature_importances_"):
                 dir_feature_names = [
-                    n for i, n in enumerate(FEATURE_NAMES)
-                    if i not in _CROSS_ASSET_INDICES
+                    n for i, n in enumerate(FEATURE_NAMES) if i not in _CROSS_ASSET_INDICES
                 ]
                 self._experiment.log_feature_importance(
                     dir_feature_names,
@@ -219,12 +229,14 @@ class ModelTrainer:
             q_high_preds = q_high.predict(x_all_test)
             coverage = float(np.mean((y_ret_test >= q_low_preds) & (y_ret_test <= q_high_preds)))
 
-            self._experiment.log_metrics({
-                "interval_coverage": round(coverage, 4),
-                "total_samples": int(x_all.shape[0]),
-                "direction_samples": int(dir_samples),
-                "filtered_as_flat_pct": filtered_pct,
-            })
+            self._experiment.log_metrics(
+                {
+                    "interval_coverage": round(coverage, 4),
+                    "total_samples": int(x_all.shape[0]),
+                    "direction_samples": int(dir_samples),
+                    "filtered_as_flat_pct": filtered_pct,
+                }
+            )
 
             # Step 7: Save models to Redis
             now = datetime.utcnow().isoformat()
@@ -346,7 +358,7 @@ class ModelTrainer:
                     lookback_days=constants.ML_TRAINING_LOOKBACK_DAYS,
                     schema="ohlcv-1h",
                 )
-            
+
             if db_data is not None:
                 closes, highs, lows, opens, volumes = db_data
             else:
@@ -493,10 +505,10 @@ class ModelTrainer:
 
             # Binary labeling with minimum move filter
             if pct_return > min_move:
-                y_dir_list.append(1)   # up
+                y_dir_list.append(1)  # up
                 dir_mask_list.append(True)
             elif pct_return < -min_move:
-                y_dir_list.append(0)   # down
+                y_dir_list.append(0)  # down
                 dir_mask_list.append(True)
             else:
                 y_dir_list.append(-1)  # placeholder — filtered out below

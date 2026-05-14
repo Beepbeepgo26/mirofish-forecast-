@@ -44,8 +44,8 @@ def build_institutional_context_template(
     ib_range: float | None = None,
     today_rth_open: float | None = None,
     # MOC context
-    moc_imbalance_usd: float | None = None,   # $ value of MOC imbalance (positive = buy)
-    minutes_to_moc: int | None = None,         # Minutes until 3:50 PM MOC data release
+    moc_imbalance_usd: float | None = None,  # $ value of MOC imbalance (positive = buy)
+    minutes_to_moc: int | None = None,  # Minutes until 3:50 PM MOC data release
 ) -> str:
     """Build a deterministic institutional context block from raw values."""
     config = get_instrument_config(instrument)
@@ -78,13 +78,9 @@ def build_institutional_context_template(
     if session_vwap is not None and es_price is not None:
         dist = es_price - session_vwap
         side = "ABOVE" if dist >= 0 else "BELOW"
-        vwap_ctx = (
-            f"VWAP: {fmt(session_vwap)} | Price {side} by {abs(dist):.2f} pts"
-        )
+        vwap_ctx = f"VWAP: {fmt(session_vwap)} | Price {side} by {abs(dist):.2f} pts"
         if session_vwap_upper and session_vwap_lower:
-            vwap_ctx += (
-                f" | Bands: {fmt(session_vwap_lower)} – {fmt(session_vwap_upper)}"
-            )
+            vwap_ctx += f" | Bands: {fmt(session_vwap_lower)} – {fmt(session_vwap_upper)}"
         # Absorption signal: price near VWAP = mean-revert pressure
         if abs(dist) < 2.0:
             vwap_ctx += " ← AT VWAP: institutional buying/selling expected here"

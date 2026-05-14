@@ -12,9 +12,7 @@ from mirofish_forecast.healthcheck.runner import _build_report_json, main
 def mock_check_results() -> list[CheckResult]:
     """Sample check results for testing."""
     return [
-        CheckResult(
-            name="test_pass", status="pass", value="ok", expected="ok", message="All good"
-        ),
+        CheckResult(name="test_pass", status="pass", value="ok", expected="ok", message="All good"),
         CheckResult(
             name="test_warn", status="warn", value="5", expected="<3", message="Slightly high"
         ),
@@ -55,9 +53,7 @@ class TestMainRunner:
         mock_gcs: MagicMock,
     ) -> None:
         mock_checks.return_value = [
-            CheckResult(
-                name="test", status="pass", value="ok", expected="ok", message="ok"
-            ),
+            CheckResult(name="test", status="pass", value="ok", expected="ok", message="ok"),
         ]
 
         # main() should not raise or call sys.exit(1)
@@ -76,9 +72,7 @@ class TestMainRunner:
         mock_gcs: MagicMock,
     ) -> None:
         mock_checks.return_value = [
-            CheckResult(
-                name="test", status="fail", value="bad", expected="good", message="broken"
-            ),
+            CheckResult(name="test", status="fail", value="bad", expected="good", message="broken"),
         ]
 
         with pytest.raises(SystemExit) as exc_info:
@@ -98,9 +92,7 @@ class TestMainRunner:
         mock_gcs: MagicMock,
     ) -> None:
         mock_checks.return_value = [
-            CheckResult(
-                name="test", status="pass", value="ok", expected="ok", message="ok"
-            ),
+            CheckResult(name="test", status="pass", value="ok", expected="ok", message="ok"),
         ]
         mock_email.side_effect = Exception("SMTP connection refused")
 

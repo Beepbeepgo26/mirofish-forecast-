@@ -3,8 +3,6 @@
 import asyncio
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from mirofish_forecast.brooks.agent_retrieval import (
     AGENT_FILTERS,
     _apply_diversity_cap,
@@ -90,16 +88,21 @@ class TestRetrieveAgentAnalogs:
         r1.score = 0.92
         mock_vector.query.return_value = [r1]
 
-        with patch(
-            "mirofish_forecast.brooks.retriever._analysis_cache",
-            {1: "Test summary"},
-        ), patch(
-            "mirofish_forecast.brooks.retriever._load_analysis_cache",
+        with (
+            patch(
+                "mirofish_forecast.brooks.retriever._analysis_cache",
+                {1: "Test summary"},
+            ),
+            patch(
+                "mirofish_forecast.brooks.retriever._load_analysis_cache",
+            ),
         ):
             analogs, telemetry = asyncio.run(
                 retrieve_agent_analogs(
-                    "institutional", "test context",
-                    mock_vector, mock_oai,
+                    "institutional",
+                    "test context",
+                    mock_vector,
+                    mock_oai,
                 )
             )
 
@@ -119,8 +122,10 @@ class TestRetrieveAgentAnalogs:
         ):
             analogs, telemetry = asyncio.run(
                 retrieve_agent_analogs(
-                    "institutional", "test context",
-                    mock_vector, mock_oai,
+                    "institutional",
+                    "test context",
+                    mock_vector,
+                    mock_oai,
                     precomputed_embedding=[0.1] * 1536,
                 )
             )
@@ -142,8 +147,10 @@ class TestRetrieveAgentAnalogs:
         ):
             analogs, telemetry = asyncio.run(
                 retrieve_agent_analogs(
-                    "institutional", "test context",
-                    mock_vector, mock_oai,
+                    "institutional",
+                    "test context",
+                    mock_vector,
+                    mock_oai,
                     timeout_seconds=0.1,
                 )
             )
@@ -164,8 +171,10 @@ class TestRetrieveAgentAnalogs:
         ):
             analogs, telemetry = asyncio.run(
                 retrieve_agent_analogs(
-                    "market_maker", "test context",
-                    mock_vector, mock_oai,
+                    "market_maker",
+                    "test context",
+                    mock_vector,
+                    mock_oai,
                 )
             )
 
@@ -182,15 +191,21 @@ class TestRetrieveAgentAnalogs:
         ):
             _, telemetry = asyncio.run(
                 retrieve_agent_analogs(
-                    "retail", "test",
-                    mock_vector, mock_oai,
+                    "retail",
+                    "test",
+                    mock_vector,
+                    mock_oai,
                     precomputed_embedding=[0.1] * 1536,
                 )
             )
 
         required_keys = {
-            "agent_role", "analogs_retrieved", "fallback_reason",
-            "retrieval_latency_ms", "filter_used", "pattern_types_returned",
+            "agent_role",
+            "analogs_retrieved",
+            "fallback_reason",
+            "retrieval_latency_ms",
+            "filter_used",
+            "pattern_types_returned",
         }
         assert required_keys == set(telemetry.keys())
 

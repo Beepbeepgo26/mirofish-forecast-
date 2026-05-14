@@ -7,7 +7,7 @@ status, the observed value, expected range, and a human-readable message.
 import json
 import logging
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel
@@ -48,7 +48,9 @@ def _safe_check(func):
     return wrapper
 
 
-def _get_json(url: str, method: str = "GET", json_body: dict | None = None, timeout: int = 30) -> tuple[int, dict]:
+def _get_json(
+    url: str, method: str = "GET", json_body: dict | None = None, timeout: int = 30
+) -> tuple[int, dict]:
     """Make an HTTP request and return (status_code, json_body).
 
     Uses requests since it's already a project dependency.
@@ -154,8 +156,8 @@ def direction_model_fresh(ml_status: dict) -> CheckResult:
             message="No trained_at timestamp found",
         )
 
-    trained_at = datetime.fromisoformat(trained_at_str).replace(tzinfo=timezone.utc)
-    age_days = (datetime.now(timezone.utc) - trained_at).total_seconds() / 86400
+    trained_at = datetime.fromisoformat(trained_at_str).replace(tzinfo=UTC)
+    age_days = (datetime.now(UTC) - trained_at).total_seconds() / 86400
 
     if age_days <= 8:
         status: CheckStatus = "pass"
@@ -363,7 +365,9 @@ def live_writer_no_errors() -> CheckResult:
     """Check last 100 live writer log lines for errors."""
     result = subprocess.run(
         [
-            "gcloud", "logging", "read",
+            "gcloud",
+            "logging",
+            "read",
             "resource.type=cloud_run_revision AND resource.labels.service_name=mirofish-live-writer",
             "--project=total-now-339022",
             "--limit=100",
@@ -408,7 +412,7 @@ def live_writer_no_errors() -> CheckResult:
 @_safe_check
 def live_writer_bars_increasing() -> CheckResult:
     """Check that bars are being written (skip weekends)."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     # CME closed Sat-Sun — skip this check
     if now.weekday() in (5, 6):
         return CheckResult(
@@ -421,8 +425,10 @@ def live_writer_bars_increasing() -> CheckResult:
 
     result = subprocess.run(
         [
-            "gcloud", "logging", "read",
-            "resource.type=cloud_run_revision AND resource.labels.service_name=mirofish-live-writer AND textPayload:\"Bars written\"",
+            "gcloud",
+            "logging",
+            "read",
+            'resource.type=cloud_run_revision AND resource.labels.service_name=mirofish-live-writer AND textPayload:"Bars written"',
             "--project=total-now-339022",
             "--limit=5",
             "--format=json",
@@ -479,17 +485,26 @@ def live_writer_bars_increasing() -> CheckResult:
 def hybrid_agents_firing(forecast_response: dict) -> CheckResult:
     """Check forecast response contains Brooks-specific analytical terms."""
     brooks_terms = [
-        "VWAP", "signal score", "Always-In", "day type",
-        "IB", "PDH", "PDL", "ONH", "ONL",
+        "VWAP",
+        "signal score",
+        "Always-In",
+        "day type",
+        "IB",
+        "PDH",
+        "PDL",
+        "ONH",
+        "ONL",
     ]
 
     # Combine all reasoning fields
-    text = " ".join([
-        str(forecast_response.get("institutional_reasoning", "")),
-        str(forecast_response.get("retail_reasoning", "")),
-        str(forecast_response.get("market_maker_reasoning", "")),
-        str(forecast_response.get("forecast_text", "")),
-    ])
+    text = " ".join(
+        [
+            str(forecast_response.get("institutional_reasoning", "")),
+            str(forecast_response.get("retail_reasoning", "")),
+            str(forecast_response.get("market_maker_reasoning", "")),
+            str(forecast_response.get("forecast_text", "")),
+        ]
+    )
 
     found = [term for term in brooks_terms if term in text]
 

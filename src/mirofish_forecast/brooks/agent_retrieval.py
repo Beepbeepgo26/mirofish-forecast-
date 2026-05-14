@@ -7,21 +7,18 @@ fallback. Returns (analogs, telemetry) — never raises.
 import asyncio
 import logging
 import time
-from typing import Literal
 
 from openai import OpenAI
 from upstash_vector import Index
 
-from mirofish_forecast.brooks.retriever import embed_query_context, retrieve_analogs
+from mirofish_forecast.brooks.retriever import embed_query_context
 from mirofish_forecast.models.brooks import BrooksAnalog
 
 logger = logging.getLogger(__name__)
 
 # Agent-specific Upstash Vector filter expressions (validated in Stage 5A)
 AGENT_FILTERS: dict[str, str] = {
-    "institutional_flow": (
-        "outcome = 'success' AND day_type IN ('trend', 'channel')"
-    ),
+    "institutional_flow": ("outcome = 'success' AND day_type IN ('trend', 'channel')"),
     "market_maker": (
         "day_type IN ('TR', 'mixed') OR pattern_type GLOB '*fade*' "
         "OR pattern_type GLOB '*reversal*' OR pattern_type GLOB '*trap*'"
@@ -128,12 +125,10 @@ async def retrieve_agent_analogs(
         elapsed_ms = (time.monotonic() - start) * 1000
         telemetry["retrieval_latency_ms"] = round(elapsed_ms, 1)
         telemetry["analogs_retrieved"] = len(result)
-        telemetry["pattern_types_returned"] = list(
-            {a.pattern_type for a in result}
-        )
+        telemetry["pattern_types_returned"] = list({a.pattern_type for a in result})
         return result, telemetry
 
-    except asyncio.TimeoutError:
+    except TimeoutError:
         elapsed_ms = (time.monotonic() - start) * 1000
         telemetry["retrieval_latency_ms"] = round(elapsed_ms, 1)
         telemetry["fallback_reason"] = "upstash_timeout"
@@ -165,7 +160,10 @@ async def _do_retrieval(
         embedding = precomputed_embedding
     else:
         embedding = await loop.run_in_executor(
-            None, embed_query_context, openai_client, query_context,
+            None,
+            embed_query_context,
+            openai_client,
+            query_context,
         )
 
     # Query Upstash with filter, over-fetch for diversity cap
@@ -180,6 +178,7 @@ async def _do_retrieval(
         )
         # Convert to BrooksAnalog models
         from mirofish_forecast.brooks.retriever import _analysis_cache, _load_analysis_cache
+
         _load_analysis_cache()
 
         analogs: list[BrooksAnalog] = []

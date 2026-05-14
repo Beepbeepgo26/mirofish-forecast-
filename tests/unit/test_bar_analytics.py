@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
+from mirofish_forecast.ml.signal_bar import compute_ema
 from mirofish_forecast.services.bar_analytics import (
     _adr_pct_used,
     _classify_day_type,
@@ -13,7 +12,6 @@ from mirofish_forecast.services.bar_analytics import (
     compute_bar_analytics,
     format_analytics_for_prompt,
 )
-from mirofish_forecast.ml.signal_bar import compute_ema
 
 
 def _make_bars(
@@ -26,14 +24,16 @@ def _make_bars(
     bars: list[dict] = []
     for i in range(n):
         c = start_price + i * step
-        bars.append({
-            "time": start_time + i * 300,
-            "open": c - 0.5,
-            "high": c + 2,
-            "low": c - 2,
-            "close": c + 0.5,
-            "volume": 10000,
-        })
+        bars.append(
+            {
+                "time": start_time + i * 300,
+                "open": c - 0.5,
+                "high": c + 2,
+                "low": c - 2,
+                "close": c + 0.5,
+                "volume": 10000,
+            }
+        )
     return bars
 
 
@@ -46,14 +46,16 @@ def _make_descending_bars(
     bars: list[dict] = []
     for i in range(n):
         c = start_price - i * step
-        bars.append({
-            "time": 1700000000 + i * 300,
-            "open": c + 0.5,
-            "high": c + 2,
-            "low": c - 2,
-            "close": c - 0.5,
-            "volume": 10000,
-        })
+        bars.append(
+            {
+                "time": 1700000000 + i * 300,
+                "open": c + 0.5,
+                "high": c + 2,
+                "low": c - 2,
+                "close": c - 0.5,
+                "volume": 10000,
+            }
+        )
     return bars
 
 
@@ -89,28 +91,32 @@ class TestSignalBarScore:
     def test_strong_bull_bar_scores_moderate_or_higher(self) -> None:
         bars = _make_bars(20)
         # Add a strong bull bar
-        bars.append({
-            "time": bars[-1]["time"] + 300,
-            "open": 5420.0,
-            "high": 5428.0,
-            "low": 5419.5,
-            "close": 5427.5,
-            "volume": 15000,
-        })
+        bars.append(
+            {
+                "time": bars[-1]["time"] + 300,
+                "open": 5420.0,
+                "high": 5428.0,
+                "low": 5419.5,
+                "close": 5427.5,
+                "volume": 15000,
+            }
+        )
         result = compute_bar_analytics(bars)
         assert result["signal_score"] >= 40  # Should be at least moderate
 
     def test_doji_scores_low(self) -> None:
         bars = _make_bars(20)
         # Doji: open ≈ close
-        bars.append({
-            "time": bars[-1]["time"] + 300,
-            "open": 5420.0,
-            "high": 5425.0,
-            "low": 5415.0,
-            "close": 5420.1,
-            "volume": 10000,
-        })
+        bars.append(
+            {
+                "time": bars[-1]["time"] + 300,
+                "open": 5420.0,
+                "high": 5425.0,
+                "low": 5415.0,
+                "close": 5420.1,
+                "volume": 10000,
+            }
+        )
         result = compute_bar_analytics(bars)
         assert result["signal_score"] < 50
 
@@ -186,9 +192,15 @@ class TestComputeBarAnalytics:
         bars = _make_bars(50)
         result = compute_bar_analytics(bars)
         expected_keys = {
-            "ema_20", "signal_score", "day_type", "always_in",
-            "time_phase", "time_multiplier", "bar_number",
-            "consecutive_trend_bars", "adr_pct_used",
+            "ema_20",
+            "signal_score",
+            "day_type",
+            "always_in",
+            "time_phase",
+            "time_multiplier",
+            "bar_number",
+            "consecutive_trend_bars",
+            "adr_pct_used",
         }
         assert expected_keys.issubset(set(result.keys()))
 

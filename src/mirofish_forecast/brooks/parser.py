@@ -14,9 +14,7 @@ from mirofish_forecast.models.brooks import BrooksPage
 logger = logging.getLogger(__name__)
 
 # Regex to match page section headers: "## Page 123 — OCR" or "## Page 123 — Analysis"
-_PAGE_HEADER_RE = re.compile(
-    r"^## Page (\d+) — (OCR|Analysis)$", re.MULTILINE
-)
+_PAGE_HEADER_RE = re.compile(r"^## Page (\d+) — (OCR|Analysis)$", re.MULTILINE)
 
 # Substrings in analysis text that indicate a title/outline slide
 _TITLE_SLIDE_MARKERS = (

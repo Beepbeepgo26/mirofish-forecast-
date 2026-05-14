@@ -13,11 +13,10 @@ class AgentDecision(MiroFishBaseModel):
     confidence: float  # 0.0 to 1.0
     price_target: float | None = None
     reasoning: str = ""
-    cot_reasoning: str | None = None         # Full CoT from Call 1 (Phase 6)
-    signal_bar_score: int | None = None      # Brooks 0–100 rubric score (None if unavailable)
-    regime: str | None = None                # TREND | RANGE | BREAKOUT | REVERSAL
-    time_horizon_bars: int | None = None     # Bars until agent expects resolution
-
+    cot_reasoning: str | None = None  # Full CoT from Call 1 (Phase 6)
+    signal_bar_score: int | None = None  # Brooks 0–100 rubric score (None if unavailable)
+    regime: str | None = None  # TREND | RANGE | BREAKOUT | REVERSAL
+    time_horizon_bars: int | None = None  # Bars until agent expects resolution
 
 
 class SimulationResult(MiroFishBaseModel):

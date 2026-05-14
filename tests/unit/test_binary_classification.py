@@ -10,13 +10,13 @@ class TestBinaryLabeling:
 
         min_move = constants.ML_DIRECTION_MIN_MOVE_PCT
 
-        pct_return_small = 0.5 / 5700    # ~0.0000877 — below threshold
-        pct_return_up = 10.0 / 5700      # ~0.00175 — above threshold
-        pct_return_down = -10.0 / 5700   # ~-0.00175 — above (negative) threshold
+        pct_return_small = 0.5 / 5700  # ~0.0000877 — below threshold
+        pct_return_up = 10.0 / 5700  # ~0.00175 — above threshold
+        pct_return_down = -10.0 / 5700  # ~-0.00175 — above (negative) threshold
 
         assert abs(pct_return_small) < min_move  # Filtered
-        assert pct_return_up > min_move           # Labeled up
-        assert pct_return_down < -min_move        # Labeled down
+        assert pct_return_up > min_move  # Labeled up
+        assert pct_return_down < -min_move  # Labeled down
 
     def test_confidence_gate_abstains(self):
         """Low-confidence predictions should be reported as 'flat' (abstention)."""
@@ -124,4 +124,4 @@ class TestBinaryLabeling:
         # Only idx 1→2 (+6pts) and idx 2→3 (-12pts) clear the threshold
         assert set(y_dir).issubset({0, 1})
         assert len(y_dir) >= 1  # At least some directional samples
-        assert -1 not in y_dir   # No placeholder labels leaked through
+        assert -1 not in y_dir  # No placeholder labels leaked through

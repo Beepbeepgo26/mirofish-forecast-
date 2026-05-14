@@ -211,6 +211,7 @@ class ScenarioBuilder:
         session_levels_text = ""
         if session_levels:
             from mirofish_forecast.data.session_levels import format_session_levels_text
+
             session_levels_text = f"\n\n{format_session_levels_text(session_levels)}"
 
         parsed: ParsedContextBlocks = self._llm.parse_structured(

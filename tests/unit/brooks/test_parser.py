@@ -1,7 +1,6 @@
 """Unit tests for Brooks corpus parser."""
 
 import json
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -13,7 +12,6 @@ from mirofish_forecast.brooks.parser import (
     parse_corpus,
 )
 from mirofish_forecast.models.brooks import BrooksPage
-
 
 # --- Test Fixtures ---
 

@@ -32,7 +32,11 @@ from mirofish_forecast.llm.prompts.agent_decision import (
     AGENT_EXTRACT_PROMPT,
     get_agent_cot_prompt,
 )
-from mirofish_forecast.ml.signal_bar import describe_signal_score, extract_bar_features, score_signal_bar
+from mirofish_forecast.ml.signal_bar import (
+    describe_signal_score,
+    extract_bar_features,
+    score_signal_bar,
+)
 from mirofish_forecast.models.forecast import AgentDecision, SimulationResult
 from mirofish_forecast.models.scenario import SimulationScenario
 from mirofish_forecast.services.session_context import SessionInfo
@@ -106,15 +110,28 @@ class MonteCarloRunner:
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 future = pool.submit(
-                    self._run_in_new_loop, scenario, sim_count, progress_callback,
-                    session, bar_analytics, session_levels_text, price_bars_text,
-                    analytics_text, agent_analog_blocks,
+                    self._run_in_new_loop,
+                    scenario,
+                    sim_count,
+                    progress_callback,
+                    session,
+                    bar_analytics,
+                    session_levels_text,
+                    price_bars_text,
+                    analytics_text,
+                    agent_analog_blocks,
                 )
                 return future.result()
         else:
             return self._run_in_new_loop(
-                scenario, sim_count, progress_callback, session,
-                bar_analytics, session_levels_text, price_bars_text, analytics_text,
+                scenario,
+                sim_count,
+                progress_callback,
+                session,
+                bar_analytics,
+                session_levels_text,
+                price_bars_text,
+                analytics_text,
                 agent_analog_blocks,
             )
 
@@ -135,9 +152,15 @@ class MonteCarloRunner:
         try:
             return loop.run_until_complete(
                 self._run_async(
-                    scenario, sim_count, progress_callback, session,
-                    bar_analytics, session_levels_text, price_bars_text,
-                    analytics_text, agent_analog_blocks,
+                    scenario,
+                    sim_count,
+                    progress_callback,
+                    session,
+                    bar_analytics,
+                    session_levels_text,
+                    price_bars_text,
+                    analytics_text,
+                    agent_analog_blocks,
                 )
             )
         finally:
@@ -166,7 +189,10 @@ class MonteCarloRunner:
             nonlocal completed
             async with sim_semaphore:
                 result = await self._run_single_simulation(
-                    sim_id, scenario, api_semaphore, session=session,
+                    sim_id,
+                    scenario,
+                    api_semaphore,
+                    session=session,
                     bar_analytics=bar_analytics,
                     session_levels_text=session_levels_text,
                     price_bars_text=price_bars_text,
@@ -423,13 +449,15 @@ class MonteCarloRunner:
             curr = price_path[i]
             # Simple synthetic bar: open=prev, close=curr, high=max+small, low=min-small
             spread = abs(curr - prev) * 0.3
-            bars.append({
-                "open": prev,
-                "high": max(prev, curr) + spread,
-                "low": min(prev, curr) - spread,
-                "close": curr,
-                "volume": 10000,
-            })
+            bars.append(
+                {
+                    "open": prev,
+                    "high": max(prev, curr) + spread,
+                    "low": min(prev, curr) - spread,
+                    "close": curr,
+                    "volume": 10000,
+                }
+            )
 
         if not bars:
             return 50
@@ -454,9 +482,7 @@ class MonteCarloRunner:
         """Check if scenario context references a FOMC announcement today."""
         # Check institutional context text for FOMC mention
         ctx_text = (
-            scenario.institutional_context.context_text
-            if scenario.institutional_context
-            else ""
+            scenario.institutional_context.context_text if scenario.institutional_context else ""
         )
         return "FOMC" in ctx_text and "ALREADY RELEASED" not in ctx_text
 
@@ -483,8 +509,9 @@ class MonteCarloRunner:
             weights["market_maker"] -= 0.075
 
         # Check sentiment extreme (retail gets higher weight)
-        mm_ctx = scenario.market_maker_context.context_text if scenario.market_maker_context else ""
-        inst_ctx = scenario.institutional_context.context_text if scenario.institutional_context else ""
+        inst_ctx = (
+            scenario.institutional_context.context_text if scenario.institutional_context else ""
+        )
 
         # Fear & Greed extreme detection from context text
         if "EXTREME FEAR" in inst_ctx or "EXTREME GREED" in inst_ctx:
@@ -755,12 +782,15 @@ class MonteCarloRunner:
                     messages=[
                         {
                             "role": "system",
-                            "content": "You extract structured trading decisions from analysis text. "
-                                       "Output valid JSON only.",
+                            "content": (
+                                "You extract structured trading decisions"
+                                " from analysis text. "
+                                "Output valid JSON only."
+                            ),
                         },
                         {"role": "user", "content": extract_prompt},
                     ],
-                    temperature=0.0,   # Deterministic extraction
+                    temperature=0.0,  # Deterministic extraction
                     max_tokens=200,
                     timeout=15,
                     response_format={"type": "json_object"},
@@ -782,9 +812,7 @@ class MonteCarloRunner:
                     direction=direction,
                     confidence=round(adjusted_confidence, 3),
                     price_target=(
-                        float(data["primary_target"])
-                        if data.get("primary_target")
-                        else None
+                        float(data["primary_target"]) if data.get("primary_target") else None
                     ),
                     reasoning=data.get("reasoning", ""),
                     cot_reasoning=cot_reasoning,

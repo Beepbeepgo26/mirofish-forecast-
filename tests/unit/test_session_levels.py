@@ -3,8 +3,6 @@
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-import pytest
-
 from mirofish_forecast.data.session_levels import (
     _empty_levels,
     compute_session_levels,
@@ -105,7 +103,10 @@ class TestComputeSessionLevels:
         bars = [
             {
                 "time": int(base_ts + i * 300),
-                "open": 5000.0, "high": 5010.0, "low": 4990.0, "close": 5005.0,
+                "open": 5000.0,
+                "high": 5010.0,
+                "low": 4990.0,
+                "close": 5005.0,
                 "volume": 1000,
             }
             for i in range(20)
@@ -226,14 +227,16 @@ class TestFormatBarsForAgents:
         bars = []
         for i in range(n):
             price = 5000.0 + i
-            bars.append({
-                "time": int(base_ts + i * 300),
-                "open": price,
-                "high": price + 3.0,
-                "low": price - 3.0,
-                "close": price + 1.5,  # bullish
-                "volume": 1000,
-            })
+            bars.append(
+                {
+                    "time": int(base_ts + i * 300),
+                    "open": price,
+                    "high": price + 3.0,
+                    "low": price - 3.0,
+                    "close": price + 1.5,  # bullish
+                    "volume": 1000,
+                }
+            )
         return bars
 
     def test_empty_bars_returns_not_available(self):

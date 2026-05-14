@@ -109,9 +109,9 @@ def score_signal_bar(
     elif rejection_ratio <= 0.33 and wrong_ratio <= 0.25:
         score += 10  # Acceptable tail structure
     elif wrong_ratio > 0.40:
-        score += 0   # Large wrong-side tail — bad signal
+        score += 0  # Large wrong-side tail — bad signal
     else:
-        score += 5   # Mixed tail quality
+        score += 5  # Mixed tail quality
 
     # --- Criterion 4: Prior Bar Overlap (10 pts) ---
     if prior_bar is not None:
@@ -130,7 +130,7 @@ def score_signal_bar(
                 if overlap_ratio < 0.10:
                     score += 10  # Gap or minimal overlap — strong breakout
                 elif overlap_ratio < 0.40:
-                    score += 5   # Some overlap — acceptable
+                    score += 5  # Some overlap — acceptable
                 # else: heavy overlap — 0 pts (inside bar / small breakout)
         except (KeyError, TypeError, ValueError):
             pass  # Missing prior bar data — skip criterion
@@ -139,14 +139,14 @@ def score_signal_bar(
     if ema_20 is not None:
         ema_dist = abs(c - ema_20)
         # "At the EMA" = within 1 average bar range of the EMA
-        ema_bar_units = (avg_bar_range or bar_range)
+        ema_bar_units = avg_bar_range or bar_range
 
         if ema_dist <= 0.3 * ema_bar_units:
             score += 10  # Touching/kissing EMA — classic entry point
         elif ema_dist <= 1.0 * ema_bar_units:
-            score += 6   # Within 1 bar range of EMA
+            score += 6  # Within 1 bar range of EMA
         else:
-            score += 2   # Far from EMA — less ideal
+            score += 2  # Far from EMA — less ideal
 
     # --- Criterion 6: Trend Context (10 pts) ---
     context_scores = {
@@ -162,11 +162,11 @@ def score_signal_bar(
     if avg_bar_range is not None and avg_bar_range > 0:
         size_ratio = bar_range / avg_bar_range
         if 0.75 <= size_ratio <= 1.75:
-            score += 5   # Average or slightly above — ideal signal bar
+            score += 5  # Average or slightly above — ideal signal bar
         elif size_ratio > 2.5:
-            score += 2   # Climactic / spike bar — often reverses
+            score += 2  # Climactic / spike bar — often reverses
         else:
-            score += 1   # Tiny bar — little commitment
+            score += 1  # Tiny bar — little commitment
     else:
         score += 3  # No reference — neutral
 

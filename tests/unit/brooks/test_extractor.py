@@ -14,7 +14,6 @@ from mirofish_forecast.brooks.extractor import (
 )
 from mirofish_forecast.models.brooks import BrooksEnrichedPage, BrooksPage
 
-
 # --- Fixtures ---
 
 
@@ -119,10 +118,12 @@ class TestExtractMetadata:
         model = MagicMock()
         response = MagicMock()
         # Minimal response — missing most fields
-        response.text = json.dumps({
-            "pattern_type": "bull_flag",
-            "direction": "long",
-        })
+        response.text = json.dumps(
+            {
+                "pattern_type": "bull_flag",
+                "direction": "long",
+            }
+        )
         model.generate_content.return_value = response
 
         result = extract_metadata(model, sample_page)
@@ -187,9 +188,11 @@ class TestLoadAlreadyDone:
     def test_handles_malformed_lines(self, tmp_path: Path) -> None:
         p = tmp_path / "output.jsonl"
         content = (
-            json.dumps({"page_number": 1}) + "\n"
+            json.dumps({"page_number": 1})
+            + "\n"
             + "not json\n"
-            + json.dumps({"page_number": 3}) + "\n"
+            + json.dumps({"page_number": 3})
+            + "\n"
         )
         p.write_text(content)
 

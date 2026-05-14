@@ -2,8 +2,6 @@
 
 from unittest.mock import patch
 
-import pytest
-
 
 class TestBrooksChartEndpoint:
     """Verify /api/brooks/chart/<page_id> endpoint."""

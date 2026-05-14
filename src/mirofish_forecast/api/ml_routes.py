@@ -66,10 +66,12 @@ def list_experiments():
     limit = int(request.args.get("limit", 20))
     runs = tracker.get_all_runs(limit=limit)
 
-    return jsonify({
-        "runs": runs,
-        "count": len(runs),
-    })
+    return jsonify(
+        {
+            "runs": runs,
+            "count": len(runs),
+        }
+    )
 
 
 @ml_bp.route("/experiments/<run_id>", methods=["GET"])
@@ -110,4 +112,3 @@ def compare_experiments():
     comparison = tracker.compare_runs(run_ids)
 
     return jsonify(comparison)
-

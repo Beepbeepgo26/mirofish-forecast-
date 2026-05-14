@@ -30,7 +30,7 @@ class TestScoreSignalBar:
         score = score_signal_bar(
             bar=bar,
             prior_bar=prior_bar,
-            ema_20=5701.0,       # Price just touched EMA from below
+            ema_20=5701.0,  # Price just touched EMA from below
             trend_context="strong_trend",
             is_second_entry=True,
             avg_bar_range=8.0,
@@ -42,13 +42,13 @@ class TestScoreSignalBar:
         bar = {
             "open": 5700.0,
             "high": 5712.0,
-            "low": 5688.0,       # 24-pt range
-            "close": 5700.5,     # Almost no body
+            "low": 5688.0,  # 24-pt range
+            "close": 5700.5,  # Almost no body
             "volume": 5000,
         }
         score = score_signal_bar(
             bar=bar,
-            ema_20=5720.0,       # Far from EMA
+            ema_20=5720.0,  # Far from EMA
             trend_context="trading_range",
         )
         assert score < 30, f"Expected < 30, got {score}"
@@ -64,9 +64,7 @@ class TestScoreSignalBar:
         }
         score_trend = score_signal_bar(bar=bar, trend_context="strong_trend")
         score_counter = score_signal_bar(bar=bar, trend_context="counter_trend")
-        assert score_trend > score_counter, (
-            f"Trend {score_trend} should > counter {score_counter}"
-        )
+        assert score_trend > score_counter, f"Trend {score_trend} should > counter {score_counter}"
 
     def test_score_clamped_between_0_and_100(self):
         """Score should never exceed 100 or go below 0."""
@@ -74,8 +72,8 @@ class TestScoreSignalBar:
         perfect = {
             "open": 5700.0,
             "high": 5710.0,
-            "low": 5699.5,   # tiny lower wick
-            "close": 5709.5, # near top
+            "low": 5699.5,  # tiny lower wick
+            "close": 5709.5,  # near top
         }
         s1 = score_signal_bar(
             perfect,
@@ -122,9 +120,9 @@ class TestScoreSignalBar:
         """A strong bearish bar should score using inverse logic (close near low)."""
         bar = {
             "open": 5710.0,
-            "high": 5710.5,    # tiny upper wick
+            "high": 5710.5,  # tiny upper wick
             "low": 5700.0,
-            "close": 5700.5,   # closed near low
+            "close": 5700.5,  # closed near low
         }
         score = score_signal_bar(
             bar=bar,
@@ -168,7 +166,13 @@ class TestExtractBarFeatures:
         ]
         features = extract_bar_features(bars)
         assert "trend_context" in features
-        assert features["trend_context"] in ("strong_trend", "channel", "trading_range", "counter_trend", "unknown")
+        assert features["trend_context"] in (
+            "strong_trend",
+            "channel",
+            "trading_range",
+            "counter_trend",
+            "unknown",
+        )
 
     def test_prior_bar_is_second_to_last(self):
         bars = [

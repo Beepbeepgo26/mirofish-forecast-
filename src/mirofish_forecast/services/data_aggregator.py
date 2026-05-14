@@ -5,13 +5,13 @@ from mirofish_forecast.config import constants
 from mirofish_forecast.config.constants import get_instrument_config
 from mirofish_forecast.config.settings import Settings
 from mirofish_forecast.data.cache import CacheClient
+from mirofish_forecast.data.databento_client import DatabentoClient
 from mirofish_forecast.data.economic_calendar import EconomicCalendarClient
 from mirofish_forecast.data.fear_greed_client import FearGreedClient
 from mirofish_forecast.data.fred_client import FredClient
 from mirofish_forecast.data.ib_client import IBClient
 from mirofish_forecast.data.vix_client import VixClient
 from mirofish_forecast.data.yfinance_client import YFinanceClient
-from mirofish_forecast.data.databento_client import DatabentoClient
 from mirofish_forecast.models.market import MarketContext
 
 logger = logging.getLogger(__name__)

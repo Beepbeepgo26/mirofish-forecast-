@@ -24,10 +24,11 @@ def build_retail_context_template(
     nq_price: float | None = None,
     spy_price: float | None = None,
     # Exclusive retail-contrarian data
-    put_call_ratio: float | None = None,      # CBOE Equity Put/Call (>1.2=extreme bearish; <0.7=extreme bullish)
-    aaii_bearish_pct: float | None = None,    # AAII % bearish (>50% = bottom signal)
-    gap_from_prior_close: float | None = None, # ES points gap at open vs prior RTH close
-    prior_rth_close: float | None = None,     # For gap fill probability context
+    put_call_ratio: float
+    | None = None,  # CBOE Equity Put/Call (>1.2=extreme bearish; <0.7=extreme bullish)
+    aaii_bearish_pct: float | None = None,  # AAII % bearish (>50% = bottom signal)
+    gap_from_prior_close: float | None = None,  # ES points gap at open vs prior RTH close
+    prior_rth_close: float | None = None,  # For gap fill probability context
     current_price_for_gap: float | None = None,  # Current price to compute gap fill progress
 ) -> str:
     """Build a deterministic retail contrarian context block from raw values."""
@@ -51,7 +52,9 @@ def build_retail_context_template(
             )
         elif fear_greed < 40:
             fg_reading = f"{fear_greed:.0f} — FEAR"
-            fg_contrarian = "Mild contrarian lean toward longs. Crowd is nervous — potential bounce fuel."
+            fg_contrarian = (
+                "Mild contrarian lean toward longs. Crowd is nervous — potential bounce fuel."
+            )
         elif fear_greed < 60:
             fg_reading = f"{fear_greed:.0f} — NEUTRAL"
             fg_contrarian = "No strong contrarian signal. Crowd is balanced."
@@ -98,7 +101,9 @@ def build_retail_context_template(
                 "Historically, extreme put/call marks short-term bottoms.",
             ]
         elif put_call_ratio > 0.9:
-            pcr_lines = [f"CBOE Put/Call Ratio: {put_call_ratio:.2f} — Bearish lean, mild contrarian buy"]
+            pcr_lines = [
+                f"CBOE Put/Call Ratio: {put_call_ratio:.2f} — Bearish lean, mild contrarian buy"
+            ]
         elif put_call_ratio < 0.7:
             pcr_lines = [
                 f"CBOE Put/Call Ratio: {put_call_ratio:.2f} — EXTREME BULLISH (<0.7)",
@@ -120,7 +125,9 @@ def build_retail_context_template(
                 "(70.3% bearish = March 2009 exact bottom; 61.9% = April 2025 rally launch)",
             ]
         elif aaii_bearish_pct > 40:
-            aaii_lines = [f"AAII Bearish Sentiment: {aaii_bearish_pct:.1f}% — Elevated, mild contrarian lean"]
+            aaii_lines = [
+                f"AAII Bearish Sentiment: {aaii_bearish_pct:.1f}% — Elevated, mild contrarian lean"
+            ]
         else:
             aaii_lines = [f"AAII Bearish Sentiment: {aaii_bearish_pct:.1f}% — Normal range"]
     else:
@@ -165,12 +172,16 @@ def build_retail_context_template(
             fill_note,
             "Rule: 40.6% of ES fills complete within first 15 min; 50%+ within 30 min.",
             (
-                "CONTRARIAN LEAN: " +
-                ("Fade this down gap if < 10 pts — gap fill toward " + fill_target + " likely."
-                 if gap_dir == "DOWN" and abs_gap < 10
-                 else "Fade this up gap if < 10 pts — gap fill toward " + fill_target + " likely."
-                 if gap_dir == "UP" and abs_gap < 10
-                 else "Large gap — do NOT fade. Follow gap direction.")
+                "CONTRARIAN LEAN: "
+                + (
+                    "Fade this down gap if < 10 pts — gap fill toward " + fill_target + " likely."
+                    if gap_dir == "DOWN" and abs_gap < 10
+                    else "Fade this up gap if < 10 pts — gap fill toward "
+                    + fill_target
+                    + " likely."
+                    if gap_dir == "UP" and abs_gap < 10
+                    else "Large gap — do NOT fade. Follow gap direction."
+                )
             ),
         ]
 
