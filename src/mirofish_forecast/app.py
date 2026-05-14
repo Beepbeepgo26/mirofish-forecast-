@@ -4,15 +4,15 @@ from mirofish_forecast.utils.logging import setup_logging
 
 setup_logging()
 
-from flask import Flask, send_from_directory
+from flask import Flask, send_from_directory  # noqa: E402
 
-from mirofish_forecast.api.brooks_routes import brooks_bp
-from mirofish_forecast.api.forecast_routes import forecast_bp
-from mirofish_forecast.api.health import health_bp
-from mirofish_forecast.api.market_routes import market_bp
-from mirofish_forecast.api.middleware import register_middleware
-from mirofish_forecast.api.ml_routes import ml_bp
-from mirofish_forecast.config.settings import get_settings
+from mirofish_forecast.api.brooks_routes import brooks_bp  # noqa: E402
+from mirofish_forecast.api.forecast_routes import forecast_bp  # noqa: E402
+from mirofish_forecast.api.health import health_bp  # noqa: E402
+from mirofish_forecast.api.market_routes import market_bp  # noqa: E402
+from mirofish_forecast.api.middleware import register_middleware  # noqa: E402
+from mirofish_forecast.api.ml_routes import ml_bp  # noqa: E402
+from mirofish_forecast.config.settings import get_settings  # noqa: E402
 
 # Resolve the frontend dist directory
 # In Docker: WORKDIR is /app, so frontend/dist/ is at /app/frontend/dist/

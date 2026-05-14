@@ -151,7 +151,6 @@ def extract_metadata(
         return None
 
 
-
 def extract_batch(
     model: genai.GenerativeModel,
     pages: list[BrooksPage],
@@ -196,7 +195,7 @@ def extract_batch(
                 break
 
             # Exponential backoff on failure
-            wait = _MIN_REQUEST_INTERVAL_S * (2 ** attempt)
+            wait = _MIN_REQUEST_INTERVAL_S * (2**attempt)
             logger.warning(
                 f"Page {page.page_number}: attempt {attempt}/{max_retries} "
                 f"failed, retrying in {wait:.0f}s..."
@@ -207,19 +206,14 @@ def extract_batch(
             results.append(enriched)
             # Append immediately for crash resilience
             with open(output_path, "a", encoding="utf-8") as f:
-                f.write(
-                    json.dumps(enriched.model_dump(), ensure_ascii=False) + "\n"
-                )
+                f.write(json.dumps(enriched.model_dump(), ensure_ascii=False) + "\n")
 
             if (i - skipped) % 50 == 0 or i == total:
                 logger.info(
-                    f"Progress: {i - skipped}/{total - skipped} extracted "
-                    f"({skipped} skipped)"
+                    f"Progress: {i - skipped}/{total - skipped} extracted ({skipped} skipped)"
                 )
         else:
-            logger.error(
-                f"Page {page.page_number}: failed after {max_retries} attempts"
-            )
+            logger.error(f"Page {page.page_number}: failed after {max_retries} attempts")
 
     logger.info(
         f"Batch complete: {len(results)} extracted, "

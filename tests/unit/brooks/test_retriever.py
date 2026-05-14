@@ -98,9 +98,7 @@ def mock_vector_results() -> list[MagicMock]:
 class TestEmbedQueryContext:
     def test_calls_openai_with_correct_model(self) -> None:
         client = MagicMock()
-        client.embeddings.create.return_value = MagicMock(
-            data=[MagicMock(embedding=[0.1] * 1536)]
-        )
+        client.embeddings.create.return_value = MagicMock(data=[MagicMock(embedding=[0.1] * 1536)])
 
         embed_query_context(client, "test query")
 
@@ -119,7 +117,9 @@ class TestRetrieveAnalogs:
         vector_client.query.return_value = mock_vector_results
 
         results = retrieve_analogs(
-            vector_client, [0.1] * 1536, top_k=5,
+            vector_client,
+            [0.1] * 1536,
+            top_k=5,
             enriched_path=enriched_jsonl,
         )
 
@@ -134,8 +134,10 @@ class TestRetrieveAnalogs:
         vector_client = MagicMock()
         vector_client.query.return_value = mock_vector_results[:1]
 
-        results = retrieve_analogs(
-            vector_client, [0.1] * 1536, top_k=1,
+        retrieve_analogs(
+            vector_client,
+            [0.1] * 1536,
+            top_k=1,
             enriched_path=enriched_jsonl,
         )
 
@@ -152,7 +154,8 @@ class TestRetrieveAnalogs:
         vector_client.query.return_value = mock_vector_results
 
         results = retrieve_analogs(
-            vector_client, [0.1] * 1536,
+            vector_client,
+            [0.1] * 1536,
             enriched_path=enriched_jsonl,
         )
 
@@ -168,7 +171,8 @@ class TestRetrieveAnalogs:
         vector_client.query.return_value = mock_vector_results
 
         results = retrieve_analogs(
-            vector_client, [0.1] * 1536,
+            vector_client,
+            [0.1] * 1536,
             enriched_path=enriched_jsonl,
         )
 

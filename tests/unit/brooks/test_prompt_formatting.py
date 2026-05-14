@@ -1,7 +1,5 @@
 """Unit tests for Brooks prompt formatting."""
 
-import pytest
-
 from mirofish_forecast.brooks.prompt_formatting import format_analogs_for_prompt
 from mirofish_forecast.models.brooks import BrooksAnalog
 

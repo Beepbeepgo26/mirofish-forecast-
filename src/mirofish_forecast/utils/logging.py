@@ -2,7 +2,6 @@ import json
 import logging
 import sys
 
-
 _STANDARD_FIELDS = frozenset(vars(logging.LogRecord("", 0, "", 0, "", (), None)).keys())
 
 

@@ -21,18 +21,18 @@ def build_market_maker_context_template(
     vix_spot: float | None = None,
     es_price: float | None = None,
     # GEX regime context (from SpotGamma/OptionMetrics — None until connected)
-    gex_regime: str | None = None,          # "positive" | "negative" | None
-    gex_magnitude: float | None = None,     # $ billions of aggregate GEX
-    call_wall: float | None = None,         # Highest gamma from calls (intraday resistance ceiling)
-    put_wall: float | None = None,          # Highest gamma from puts (intraday support floor)
-    zero_gamma: float | None = None,        # Gamma flip level (regime boundary)
-    vol_trigger: float | None = None,       # Volatility trigger level (range expansion warning)
+    gex_regime: str | None = None,  # "positive" | "negative" | None
+    gex_magnitude: float | None = None,  # $ billions of aggregate GEX
+    call_wall: float | None = None,  # Highest gamma from calls (intraday resistance ceiling)
+    put_wall: float | None = None,  # Highest gamma from puts (intraday support floor)
+    zero_gamma: float | None = None,  # Gamma flip level (regime boundary)
+    vol_trigger: float | None = None,  # Volatility trigger level (range expansion warning)
     # Expiration context
-    is_opex_week: bool = False,             # Monthly OPEX week (charm/vanna tailwinds)
-    is_post_opex: bool = False,             # First two sessions post-OPEX (unclenched ranges)
+    is_opex_week: bool = False,  # Monthly OPEX week (charm/vanna tailwinds)
+    is_post_opex: bool = False,  # First two sessions post-OPEX (unclenched ranges)
     days_to_opex: int | None = None,
     # 0DTE context
-    minutes_to_close: int | None = None,   # For last-90-min amplification warnings
+    minutes_to_close: int | None = None,  # For last-90-min amplification warnings
 ) -> str:
     """Build a deterministic market maker context block from raw values."""
     config = get_instrument_config(instrument)
@@ -88,7 +88,7 @@ def build_market_maker_context_template(
             gex_lines += [
                 f"GEX Regime: POSITIVE ({fmtb(gex_magnitude)}) — MEAN-REVERSION environment",
                 "Dealer behavior: BUY dips, SELL rallies to maintain delta neutrality.",
-                f"Expected daily range: 15–40 ES pts. FADE moves at GEX walls.",
+                "Expected daily range: 15–40 ES pts. FADE moves at GEX walls.",
                 "Strategy: Tighten targets, assign higher confidence to reversal setups.",
                 f"  Call Wall (resistance ceiling): {fmt(call_wall)}",
                 f"  Put Wall (support floor):       {fmt(put_wall)}",

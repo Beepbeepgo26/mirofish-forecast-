@@ -1,12 +1,9 @@
 """Unit tests for healthcheck check functions."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from mirofish_forecast.healthcheck.checks import (
-    CheckResult,
     confidence_filtered_pct_sane,
     direction_model_accuracy_sane,
     direction_model_fresh,
@@ -23,7 +20,6 @@ from mirofish_forecast.healthcheck.checks import (
     quantile_high_coverage_sane,
 )
 
-
 # --- Helpers ---
 
 
@@ -39,7 +35,7 @@ def _ml_status(
     """Build a mock /api/ml/status response."""
     return {
         "direction_model": {
-            "trained_at": trained_at or datetime.now(timezone.utc).isoformat(),
+            "trained_at": trained_at or datetime.now(UTC).isoformat(),
             "accuracy": accuracy,
             "mode": mode,
             "confidence_filtered_pct": conf_pct,
@@ -105,12 +101,12 @@ class TestDirectionModelFresh:
         assert result.status == "pass"
 
     def test_warn_10_days(self) -> None:
-        old = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
+        old = (datetime.now(UTC) - timedelta(days=10)).isoformat()
         result = direction_model_fresh(_ml_status(trained_at=old))
         assert result.status == "warn"
 
     def test_fail_20_days(self) -> None:
-        old = (datetime.now(timezone.utc) - timedelta(days=20)).isoformat()
+        old = (datetime.now(UTC) - timedelta(days=20)).isoformat()
         result = direction_model_fresh(_ml_status(trained_at=old))
         assert result.status == "fail"
 
@@ -262,24 +258,30 @@ class TestLiveWriterBarsIncreasing:
 
 class TestHybridAgentsFiring:
     def test_pass_terms_present(self) -> None:
-        result = hybrid_agents_firing({
-            "institutional_reasoning": "VWAP at 5800, signal score 72",
-            "forecast_text": "Based on day type analysis",
-        })
+        result = hybrid_agents_firing(
+            {
+                "institutional_reasoning": "VWAP at 5800, signal score 72",
+                "forecast_text": "Based on day type analysis",
+            }
+        )
         assert result.status == "pass"
 
     def test_fail_no_terms(self) -> None:
-        result = hybrid_agents_firing({
-            "institutional_reasoning": "The market looks bullish",
-            "forecast_text": "Price may go up",
-        })
+        result = hybrid_agents_firing(
+            {
+                "institutional_reasoning": "The market looks bullish",
+                "forecast_text": "Price may go up",
+            }
+        )
         assert result.status == "fail"
 
     def test_pass_multiple_fields(self) -> None:
-        result = hybrid_agents_firing({
-            "market_maker_reasoning": "GEX near PDH level with ONH resistance",
-            "retail_reasoning": "Retail crowd is buying near IB high",
-        })
+        result = hybrid_agents_firing(
+            {
+                "market_maker_reasoning": "GEX near PDH level with ONH resistance",
+                "retail_reasoning": "Retail crowd is buying near IB high",
+            }
+        )
         assert result.status == "pass"
 
 

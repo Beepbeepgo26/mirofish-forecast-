@@ -24,24 +24,24 @@ DATABENTO_SYMBOL_MAP: dict[str, str] = {
 }
 
 # Redis key patterns (written by Live Writer, read by DatabentoClient)
-DATABENTO_PRICE_KEY_PREFIX = "databento:price"       # databento:price:ES → "7060.25"
-DATABENTO_BAR_KEY_PREFIX = "databento:bar"           # databento:bar:ES:{timestamp} → bar JSON
-DATABENTO_BARLIST_PREFIX = "databento:barlist"        # Sorted set of bar keys
+DATABENTO_PRICE_KEY_PREFIX = "databento:price"  # databento:price:ES → "7060.25"
+DATABENTO_BAR_KEY_PREFIX = "databento:bar"  # databento:bar:ES:{timestamp} → bar JSON
+DATABENTO_BARLIST_PREFIX = "databento:barlist"  # Sorted set of bar keys
 DATABENTO_WRITER_HEARTBEAT = "databento:writer:heartbeat"
 
 # Cache TTLs
-CACHE_TTL_DATABENTO_PRICE = 10       # Latest price: 10 seconds
-CACHE_TTL_SESSION_LEVELS = 60        # Session levels: 60 seconds
+CACHE_TTL_DATABENTO_PRICE = 10  # Latest price: 10 seconds
+CACHE_TTL_SESSION_LEVELS = 60  # Session levels: 60 seconds
 
 # Bar counts for different contexts
-SCENARIO_BUILDER_BARS = 78           # Full RTH session (6.5hr ÷ 5min = 78 bars)
-AGENT_CONTEXT_BARS = 50              # Per-agent calls (enough for channels + 20-EMA)
-SESSION_LEVEL_BARS = 300             # ~25 hours of 5-min bars (today + yesterday + overnight)
+SCENARIO_BUILDER_BARS = 78  # Full RTH session (6.5hr ÷ 5min = 78 bars)
+AGENT_CONTEXT_BARS = 50  # Per-agent calls (enough for channels + 20-EMA)
+SESSION_LEVEL_BARS = 300  # ~25 hours of 5-min bars (today + yesterday + overnight)
 
 # Session reference levels
-RTH_START_MINUTES = 570              # 9:30 AM ET = 9*60 + 30
-RTH_END_MINUTES = 960                # 4:00 PM ET = 16*60
-INITIAL_BALANCE_BARS = 12            # First 60 minutes = 12 five-minute bars
+RTH_START_MINUTES = 570  # 9:30 AM ET = 9*60 + 30
+RTH_END_MINUTES = 960  # 4:00 PM ET = 16*60
+INITIAL_BALANCE_BARS = 12  # First 60 minutes = 12 five-minute bars
 
 # FRED series IDs
 FRED_SERIES_FED_FUNDS = "DFF"
@@ -408,10 +408,10 @@ ML_TRAINING_LOOKBACK_DAYS = 365
 ML_TRAINING_HORIZONS = [30, 60, 120, 240]
 ML_DEFAULT_HORIZON = 120
 ML_MIN_TRAINING_SAMPLES = 500
-ML_DIRECTION_MODE = "binary"                    # "binary" or "multiclass"
-ML_DIRECTION_MIN_MOVE_PCT = 0.001               # 0.10% min move to qualify as up/down (~6 pts on ES at 5700)
-ML_DIRECTION_CONFIDENCE_THRESHOLD = 0.55        # Abstain below this — report "flat"
-ML_DIRECTION_FLAT_THRESHOLD = 0.001             # Legacy — used by tracking/bootstrap for actual direction
+ML_DIRECTION_MODE = "binary"  # "binary" or "multiclass"
+ML_DIRECTION_MIN_MOVE_PCT = 0.001  # 0.10% min move to qualify as up/down (~6 pts on ES at 5700)
+ML_DIRECTION_CONFIDENCE_THRESHOLD = 0.55  # Abstain below this — report "flat"
+ML_DIRECTION_FLAT_THRESHOLD = 0.001  # Legacy — used by tracking/bootstrap for actual direction
 ML_TRAIN_STATUS_KEY = "ml:train_status"
 
 # LightGBM hyperparameters
@@ -463,8 +463,8 @@ SIGNAL_SCORE_MODERATE = 50
 SIGNAL_SCORE_NO_TRADE = 30
 
 # Agent confidence constraints (applied after time-of-day multiplier)
-AGENT_MIN_CONFIDENCE = 0.55     # Floor — prevents near-random outputs
-AGENT_MAX_CONFIDENCE = 0.95     # Ceiling — prevents overconfidence
+AGENT_MIN_CONFIDENCE = 0.55  # Floor — prevents near-random outputs
+AGENT_MAX_CONFIDENCE = 0.95  # Ceiling — prevents overconfidence
 
 # Baseline agent weights (sum = 1.0)
 AGENT_WEIGHTS: dict[str, float] = {
@@ -475,27 +475,26 @@ AGENT_WEIGHTS: dict[str, float] = {
 
 # Regime-adjusted weight overrides
 AGENT_WEIGHTS_TREND: dict[str, float] = {
-    "institutional": 0.50,       # Institutional leads in trends
+    "institutional": 0.50,  # Institutional leads in trends
     "market_maker": 0.30,
     "retail": 0.20,
 }
 
 AGENT_WEIGHTS_RANGE: dict[str, float] = {
     "institutional": 0.35,
-    "market_maker": 0.45,        # Market maker leads in ranges (mean-reversion)
+    "market_maker": 0.45,  # Market maker leads in ranges (mean-reversion)
     "retail": 0.20,
 }
 
 AGENT_WEIGHTS_HIGH_SENTIMENT: dict[str, float] = {
     "institutional": 0.35,
     "market_maker": 0.30,
-    "retail": 0.35,              # Retail contrarian elevated at sentiment extremes
+    "retail": 0.35,  # Retail contrarian elevated at sentiment extremes
 }
 
 # --- Experiment Tracking ---
 
 EXPERIMENT_PREFIX = "mf:experiments"
 EXPERIMENT_INDEX_KEY = "mf:experiments:index"
-EXPERIMENT_MAX_RUNS = 100          # Keep last 100 training runs
-EXPERIMENT_TTL = 86400 * 180       # 6 months retention
-
+EXPERIMENT_MAX_RUNS = 100  # Keep last 100 training runs
+EXPERIMENT_TTL = 86400 * 180  # 6 months retention

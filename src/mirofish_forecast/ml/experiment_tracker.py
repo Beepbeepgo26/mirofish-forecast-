@@ -8,11 +8,10 @@ to a temp dir that lives for the duration of the training thread.
 
 import json
 import logging
-import os
 import shutil
 import tempfile
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from mirofish_forecast.config import constants
 from mirofish_forecast.data.cache import CacheClient
@@ -45,7 +44,7 @@ class ExperimentTracker:
         self._params = {}
         self._metrics = {}
         self._artifacts = {}
-        self._start_time = datetime.now(timezone.utc)
+        self._start_time = datetime.now(UTC)
 
         if run_name:
             self._params["run_name"] = run_name
@@ -109,9 +108,7 @@ class ExperimentTracker:
         for k, v in metrics.items():
             self.log_metric(k, v)
 
-    def log_feature_importance(
-        self, feature_names: list[str], importances: list[float]
-    ) -> None:
+    def log_feature_importance(self, feature_names: list[str], importances: list[float]) -> None:
         """Log feature importance as a sorted list."""
         pairs = sorted(
             zip(feature_names, importances),
@@ -119,14 +116,11 @@ class ExperimentTracker:
             reverse=True,
         )
         self._artifacts["feature_importance"] = [
-            {"feature": name, "importance": round(float(imp), 4)}
-            for name, imp in pairs
+            {"feature": name, "importance": round(float(imp), 4)} for name, imp in pairs
         ]
         # Also log top 10 as individual metrics for easy comparison
         for i, (name, imp) in enumerate(pairs[:10]):
-            self.log_metric(
-                f"importance_rank{i + 1}_{name}", round(float(imp), 4)
-            )
+            self.log_metric(f"importance_rank{i + 1}_{name}", round(float(imp), 4))
 
     def end_run(self, status: str = "success") -> dict:
         """End the run, persist summary to Redis, and clean up.
@@ -137,12 +131,8 @@ class ExperimentTracker:
         Returns:
             The complete run record.
         """
-        end_time = datetime.now(timezone.utc)
-        duration = (
-            (end_time - self._start_time).total_seconds()
-            if self._start_time
-            else 0
-        )
+        end_time = datetime.now(UTC)
+        duration = (end_time - self._start_time).total_seconds() if self._start_time else 0
 
         # Extract any additional MLflow-captured data
         mlflow_auto_params = self._extract_mlflow_data()
@@ -168,9 +158,7 @@ class ExperimentTracker:
         run_record: dict = {
             "run_id": self._run_id,
             "status": status,
-            "started_at": (
-                self._start_time.isoformat() if self._start_time else None
-            ),
+            "started_at": (self._start_time.isoformat() if self._start_time else None),
             "ended_at": end_time.isoformat(),
             "duration_seconds": round(duration, 1),
             "params": self._params,
@@ -189,8 +177,7 @@ class ExperimentTracker:
                 pass
 
         logger.info(
-            f"Experiment run ended: {self._run_id}, "
-            f"status={status}, duration={duration:.1f}s"
+            f"Experiment run ended: {self._run_id}, status={status}, duration={duration:.1f}s"
         )
         return run_record
 
@@ -265,9 +252,7 @@ class ExperimentTracker:
 
         # Save the run
         key = f"{constants.EXPERIMENT_PREFIX}:{run_id}"
-        self._cache.set(
-            key, json.dumps(run_record), constants.EXPERIMENT_TTL
-        )
+        self._cache.set(key, json.dumps(run_record), constants.EXPERIMENT_TTL)
 
         # Update the index
         index_raw = self._cache.get(constants.EXPERIMENT_INDEX_KEY)
@@ -310,9 +295,7 @@ class ExperimentTracker:
         try:
             import mlflow
 
-            client = mlflow.tracking.MlflowClient(
-                tracking_uri=f"file://{self._mlflow_dir}"
-            )
+            client = mlflow.tracking.MlflowClient(tracking_uri=f"file://{self._mlflow_dir}")
 
             # Get the active run
             runs = client.search_runs(experiment_ids=["0"])
@@ -330,8 +313,6 @@ class ExperimentTracker:
                 result["metrics"][k] = v
 
         except Exception:
-            logger.debug(
-                "Failed to extract MLflow auto-logged data", exc_info=True
-            )
+            logger.debug("Failed to extract MLflow auto-logged data", exc_info=True)
 
         return result

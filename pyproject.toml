@@ -56,6 +56,22 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
 
+[tool.ruff.lint.per-file-ignores]
+# Prompt templates contain long natural-language lines by design
+"src/mirofish_forecast/llm/prompts/*.py" = ["E501"]
+"src/mirofish_forecast/brooks/extractor.py" = ["E501"]
+# Config constants contain long format strings
+"src/mirofish_forecast/config/constants.py" = ["E501"]
+# Health check strings
+"src/mirofish_forecast/healthcheck/*.py" = ["E501"]
+# Pre-existing variable name
+"src/mirofish_forecast/ml/signal_bar.py" = ["E741"]
+# ML trainer format strings
+"src/mirofish_forecast/ml/trainer.py" = ["E501"]
+# Test assertions with long expected strings
+"tests/unit/*.py" = ["E501"]
+"tests/unit/**/*.py" = ["E501"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true

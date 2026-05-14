@@ -3,8 +3,6 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-import pytest
-
 from mirofish_forecast.services.tod_regime import (
     TODRegime,
     format_tod_context,
@@ -17,6 +15,7 @@ ET = ZoneInfo("America/New_York")
 def make_et(hour: int, minute: int = 0) -> datetime:
     """Create a today's ET datetime at the given hour:minute."""
     from datetime import date
+
     today = date.today()
     return datetime(today.year, today.month, today.day, hour, minute, tzinfo=ET)
 

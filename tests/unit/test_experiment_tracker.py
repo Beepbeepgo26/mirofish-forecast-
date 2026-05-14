@@ -5,7 +5,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from mirofish_forecast.data.cache import CacheClient
 from mirofish_forecast.ml.experiment_tracker import ExperimentTracker
 
 
@@ -42,9 +41,7 @@ class TestStartAndEndRun:
         # Should have saved to Redis (run record + index update = 2 set calls)
         assert mock_cache.set.called
 
-    def test_failed_run(
-        self, tracker: ExperimentTracker, mock_cache: MagicMock
-    ) -> None:
+    def test_failed_run(self, tracker: ExperimentTracker, mock_cache: MagicMock) -> None:
         tracker.start_run()
         record = tracker.end_run(status="failed")
         assert record["status"] == "failed"

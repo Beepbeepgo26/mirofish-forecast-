@@ -25,7 +25,7 @@ class TestIsEnabled:
         assert client.is_enabled is False
 
     def test_disabled_when_blank_key(self):
-        client = make_client(api_key="   ")
+        make_client(api_key="   ")
         # Non-empty whitespace still truthy — acceptable; empty string → disabled
         # This test verifies the current contract
         client2 = make_client(api_key="")
@@ -48,6 +48,7 @@ class TestIsLiveWriterHealthy:
     def test_heartbeat_key_is_correct_constant(self):
         """Verify the heartbeat lookup uses the expected Redis key."""
         from mirofish_forecast.config import constants
+
         cache = Mock()
         cache.get.return_value = "some-ts"
         client = make_client(cache=cache)
@@ -100,9 +101,15 @@ class TestGetRecentBars:
 
     def test_returns_bars_oldest_first(self):
         bars = {
-            "mf:databento:bar:ES:800": json.dumps({"time": 800, "open": 10, "high": 11, "low": 9, "close": 5003}),
-            "mf:databento:bar:ES:740": json.dumps({"time": 740, "open": 10, "high": 11, "low": 9, "close": 5002}),
-            "mf:databento:bar:ES:680": json.dumps({"time": 680, "open": 10, "high": 11, "low": 9, "close": 5001}),
+            "mf:databento:bar:ES:800": json.dumps(
+                {"time": 800, "open": 10, "high": 11, "low": 9, "close": 5003}
+            ),
+            "mf:databento:bar:ES:740": json.dumps(
+                {"time": 740, "open": 10, "high": 11, "low": 9, "close": 5002}
+            ),
+            "mf:databento:bar:ES:680": json.dumps(
+                {"time": 680, "open": 10, "high": 11, "low": 9, "close": 5001}
+            ),
         }
         # zrevrange returns newest first
         cache = Mock()
@@ -126,7 +133,9 @@ class TestGetRecentBars:
     def test_skips_invalid_json_bars(self):
         cache = Mock()
         cache.zrevrange.return_value = ["bar_a", "bar_b"]
-        cache.get.side_effect = lambda k: "not-json" if k == "bar_a" else json.dumps({"time": 100, "close": 5000})
+        cache.get.side_effect = lambda k: (
+            "not-json" if k == "bar_a" else json.dumps({"time": 100, "close": 5000})
+        )
         client = make_client(cache=cache)
         result = client.get_recent_bars("ES", 2)
         assert len(result) == 1
@@ -160,12 +169,12 @@ class TestResampleTo5Min:
         result = client._resample_to_5min(bars_1m)
         assert len(result) == 1
         bar = result[0]
-        assert bar["time"] == 60       # start of bucket
-        assert bar["open"] == 10       # first open
-        assert bar["high"] == 22       # highest high
-        assert bar["low"] == 5         # lowest low
-        assert bar["close"] == 20      # last close
-        assert bar["volume"] == 300    # sum
+        assert bar["time"] == 60  # start of bucket
+        assert bar["open"] == 10  # first open
+        assert bar["high"] == 22  # highest high
+        assert bar["low"] == 5  # lowest low
+        assert bar["close"] == 20  # last close
+        assert bar["volume"] == 300  # sum
 
     def test_10_bars_makes_2_candles(self):
         client = make_client()
@@ -196,8 +205,7 @@ class TestResampleTo5Min:
     def test_volume_missing_defaults_to_zero(self):
         client = make_client()
         bars = [
-            {"time": i * 60, "open": 100, "high": 101, "low": 99, "close": 100}
-            for i in range(1, 6)
+            {"time": i * 60, "open": 100, "high": 101, "low": 99, "close": 100} for i in range(1, 6)
         ]
         result = client._resample_to_5min(bars)
         assert result[0]["volume"] == 0
@@ -223,13 +231,15 @@ class TestGetTrainingData:
         pytest.importorskip("databento", reason="databento not installed")
         import pandas as pd
 
-        mock_df = pd.DataFrame({
-            "open": [5000.0] * 250,
-            "high": [5010.0] * 250,
-            "low": [4990.0] * 250,
-            "close": [5005.0] * 250,
-            "volume": [1000.0] * 250,
-        })
+        mock_df = pd.DataFrame(
+            {
+                "open": [5000.0] * 250,
+                "high": [5010.0] * 250,
+                "low": [4990.0] * 250,
+                "close": [5005.0] * 250,
+                "volume": [1000.0] * 250,
+            }
+        )
 
         mock_data = Mock()
         mock_data.to_df.return_value = mock_df

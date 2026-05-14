@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
@@ -26,17 +26,17 @@ logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
 
 
-class TODRegime(str, Enum):
+class TODRegime(StrEnum):
     """Time-of-day regime names."""
 
-    OPENING_ROTATION = "opening_rotation"    # 9:30–10:30
-    TREND_ESTABLISH = "trend_establish"      # 10:30–11:30
-    LUNCH_DOLDRUMS = "lunch_doldrums"        # 11:30–13:30
-    PRE_BREAKOUT = "pre_breakout"            # 13:30–14:00
-    PRIME_BREAKOUT = "prime_breakout"        # 14:00–14:45
-    FOMC_WINDOW = "fomc_window"              # 14:00–14:45 on FOMC days
-    POWER_HOUR = "power_hour"               # 15:00–16:00
-    OVERNIGHT = "overnight"                  # Outside RTH
+    OPENING_ROTATION = "opening_rotation"  # 9:30–10:30
+    TREND_ESTABLISH = "trend_establish"  # 10:30–11:30
+    LUNCH_DOLDRUMS = "lunch_doldrums"  # 11:30–13:30
+    PRE_BREAKOUT = "pre_breakout"  # 13:30–14:00
+    PRIME_BREAKOUT = "prime_breakout"  # 14:00–14:45
+    FOMC_WINDOW = "fomc_window"  # 14:00–14:45 on FOMC days
+    POWER_HOUR = "power_hour"  # 15:00–16:00
+    OVERNIGHT = "overnight"  # Outside RTH
 
 
 _REGIME_CONFIG: dict[TODRegime, dict] = {
@@ -142,19 +142,19 @@ def get_tod_regime(
     # RTH: 9:30 AM (570) to 16:00 (960) ET
     if minutes < 570 or minutes >= 960:
         regime = TODRegime.OVERNIGHT
-    elif minutes < 630:   # 9:30–10:30
+    elif minutes < 630:  # 9:30–10:30
         regime = TODRegime.OPENING_ROTATION
-    elif minutes < 690:   # 10:30–11:30
+    elif minutes < 690:  # 10:30–11:30
         regime = TODRegime.TREND_ESTABLISH
-    elif minutes < 810:   # 11:30–13:30
+    elif minutes < 810:  # 11:30–13:30
         regime = TODRegime.LUNCH_DOLDRUMS
-    elif minutes < 840:   # 13:30–14:00
+    elif minutes < 840:  # 13:30–14:00
         regime = TODRegime.PRE_BREAKOUT
-    elif minutes < 885:   # 14:00–14:45
+    elif minutes < 885:  # 14:00–14:45
         regime = TODRegime.FOMC_WINDOW if is_fomc_day else TODRegime.PRIME_BREAKOUT
-    elif minutes < 900:   # 14:45–15:00 — transition, treat as pre-power
+    elif minutes < 900:  # 14:45–15:00 — transition, treat as pre-power
         regime = TODRegime.PRE_BREAKOUT
-    else:                 # 15:00–16:00
+    else:  # 15:00–16:00
         regime = TODRegime.POWER_HOUR
 
     config = _REGIME_CONFIG[regime]
@@ -194,8 +194,7 @@ def format_tod_context(
 
     if multiplier <= 0.50:
         lines.append(
-            "⚠ LOW CONFIDENCE WINDOW — tighten all price targets, "
-            "avoid chasing breakouts."
+            "⚠ LOW CONFIDENCE WINDOW — tighten all price targets, avoid chasing breakouts."
         )
 
     return "\n".join(lines)

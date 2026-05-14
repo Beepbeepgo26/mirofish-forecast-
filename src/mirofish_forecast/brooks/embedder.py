@@ -85,11 +85,11 @@ def embed_text(
             )
             return response.data[0].embedding
         except RateLimitError:
-            wait = 2 ** attempt
+            wait = 2**attempt
             logger.warning(f"Rate limited, retrying in {wait}s (attempt {attempt})")
             time.sleep(wait)
         except (APIConnectionError, APITimeoutError) as e:
-            wait = 2 ** attempt
+            wait = 2**attempt
             logger.warning(f"API error: {e}, retrying in {wait}s (attempt {attempt})")
             time.sleep(wait)
 
@@ -109,9 +109,7 @@ def index_page(
         embedding: 1536-dim embedding vector.
     """
     vector_id = f"page_{page.page_number:04d}"
-    gcs_url = (
-        f"gs://{_GCS_BUCKET}/{_GCS_PREFIX}/page_{page.page_number:04d}.jpg"
-    )
+    gcs_url = f"gs://{_GCS_BUCKET}/{_GCS_PREFIX}/page_{page.page_number:04d}.jpg"
 
     metadata = {
         "page_number": page.page_number,

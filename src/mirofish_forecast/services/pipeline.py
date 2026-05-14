@@ -11,6 +11,12 @@ from typing import Any
 from mirofish_forecast.calibration.tracking import ForecastTracker
 from mirofish_forecast.config import constants
 from mirofish_forecast.config.settings import Settings
+from mirofish_forecast.data.databento_client import DatabentoClient
+from mirofish_forecast.data.session_levels import (
+    compute_session_levels,
+    format_bars_for_agents,
+    format_session_levels_text,
+)
 from mirofish_forecast.ml.fast_path import FastPathRunner
 from mirofish_forecast.models.forecast import (
     ForecastResult,
@@ -22,12 +28,6 @@ from mirofish_forecast.services.nlp_parser import NLPParser
 from mirofish_forecast.services.scenario_builder import ScenarioBuilder
 from mirofish_forecast.services.session_context import get_session_info
 from mirofish_forecast.services.simulation_runner import MonteCarloRunner
-from mirofish_forecast.data.databento_client import DatabentoClient
-from mirofish_forecast.data.session_levels import (
-    compute_session_levels,
-    format_session_levels_text,
-    format_bars_for_agents,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +131,9 @@ class ForecastPipeline:
 
             # Route decision: fast path or full path?
             use_fast_path = self._should_use_fast_path(
-                query, sim_preset, path_override,
+                query,
+                sim_preset,
+                path_override,
             )
 
             if use_fast_path and self._fast_path.is_available():
@@ -156,6 +158,7 @@ class ForecastPipeline:
                 compute_bar_analytics,
                 format_analytics_for_prompt,
             )
+
             bar_analytics = compute_bar_analytics(bars_5m)
             analytics_text = format_analytics_for_prompt(bar_analytics)
 
@@ -165,7 +168,9 @@ class ForecastPipeline:
                 return
             self._emit_stage(constants.STAGE_SCENARIO_BUILDING)
             scenario = self._scenario_builder.build(
-                query, context, price_context_text=price_context_text,
+                query,
+                context,
+                price_context_text=price_context_text,
             )
             self._emit_stage_complete(
                 constants.STAGE_SCENARIO_BUILDING,
@@ -184,7 +189,8 @@ class ForecastPipeline:
 
             # Brooks RAG retrieval (per-agent analogs)
             agent_analog_blocks, agent_raw_analogs = self._retrieve_brooks_analogs(
-                analytics_text, forecast_id,
+                analytics_text,
+                forecast_id,
             )
 
             # Stage 4: Run Monte Carlo simulations
@@ -300,9 +306,7 @@ class ForecastPipeline:
             },
         )
 
-        bars_5m, session_levels, bars_text, levels_text = self._get_price_context(
-            query.instrument
-        )
+        bars_5m, session_levels, bars_text, levels_text = self._get_price_context(query.instrument)
         ohlcv_bars = bars_5m  # Use 5-min Databento bars for features
         cross_asset_returns = self._get_cross_asset_returns()
 
@@ -544,18 +548,24 @@ class ForecastPipeline:
             ]:
                 return await asyncio.gather(
                     retrieve_agent_analogs(
-                        "institutional", analytics_text,
-                        vector_client, openai_client,
+                        "institutional",
+                        analytics_text,
+                        vector_client,
+                        openai_client,
                         precomputed_embedding=embedding,
                     ),
                     retrieve_agent_analogs(
-                        "market_maker", analytics_text,
-                        vector_client, openai_client,
+                        "market_maker",
+                        analytics_text,
+                        vector_client,
+                        openai_client,
                         precomputed_embedding=embedding,
                     ),
                     retrieve_agent_analogs(
-                        "retail", analytics_text,
-                        vector_client, openai_client,
+                        "retail",
+                        analytics_text,
+                        vector_client,
+                        openai_client,
                         precomputed_embedding=embedding,
                     ),
                 )
@@ -568,13 +578,12 @@ class ForecastPipeline:
 
             if loop and loop.is_running():
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor() as pool:
                     future = pool.submit(asyncio.run, _retrieve_all())
                     inst_result, mm_result, retail_result = future.result(timeout=10)
             else:
-                inst_result, mm_result, retail_result = asyncio.run(
-                    _retrieve_all()
-                )
+                inst_result, mm_result, retail_result = asyncio.run(_retrieve_all())
 
             inst_analogs, inst_telemetry = inst_result
             mm_analogs, mm_telemetry = mm_result
@@ -591,7 +600,9 @@ class ForecastPipeline:
                 extra={
                     "forecast_id": forecast_id,
                     "agent_telemetry": [
-                        inst_telemetry, mm_telemetry, retail_telemetry,
+                        inst_telemetry,
+                        mm_telemetry,
+                        retail_telemetry,
                     ],
                     "total_retrieval_latency_ms": round(total_latency, 1),
                     "analogs_total": (
@@ -691,9 +702,7 @@ class ForecastPipeline:
         # Get 5-min bars from Databento (Redis)
         bars_5m = []
         if databento.is_enabled:
-            bars_5m = databento.get_5min_bars(
-                instrument, count=constants.SESSION_LEVEL_BARS
-            )
+            bars_5m = databento.get_5min_bars(instrument, count=constants.SESSION_LEVEL_BARS)
 
         # Fallback to yfinance if Databento unavailable
         if not bars_5m:
@@ -705,9 +714,7 @@ class ForecastPipeline:
         # Format for agent context
         # Scenario builder gets 78 bars (full RTH)
         # Agent calls get 50 bars (recent action)
-        bars_text = format_bars_for_agents(
-            bars_5m, max_bars=constants.AGENT_CONTEXT_BARS
-        )
+        bars_text = format_bars_for_agents(bars_5m, max_bars=constants.AGENT_CONTEXT_BARS)
         levels_text = format_session_levels_text(session_levels)
 
         return bars_5m, session_levels, bars_text, levels_text
@@ -730,14 +737,16 @@ class ForecastPipeline:
 
             bars: list[dict] = []
             for ts, row in data.tail(300).iterrows():
-                bars.append({
-                    "time": int(ts.timestamp()),
-                    "open": float(row["Open"]),
-                    "high": float(row["High"]),
-                    "low": float(row["Low"]),
-                    "close": float(row["Close"]),
-                    "volume": int(row.get("Volume", 0)),
-                })
+                bars.append(
+                    {
+                        "time": int(ts.timestamp()),
+                        "open": float(row["Open"]),
+                        "high": float(row["High"]),
+                        "low": float(row["Low"]),
+                        "close": float(row["Close"]),
+                        "volume": int(row.get("Volume", 0)),
+                    }
+                )
             return bars
         except Exception:
             logger.warning(f"yfinance OHLCV fallback failed for {instrument}", exc_info=True)
@@ -747,9 +756,7 @@ class ForecastPipeline:
         """Fetch recent bars — Databento first, yfinance fallback."""
         databento = DatabentoClient(self._settings, self._tracker._cache)
         if databento.is_enabled:
-            bars = databento.get_5min_bars(
-                instrument, count=constants.FEATURE_OHLCV_LOOKBACK
-            )
+            bars = databento.get_5min_bars(instrument, count=constants.FEATURE_OHLCV_LOOKBACK)
             if bars:
                 return bars
 

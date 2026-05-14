@@ -9,7 +9,7 @@ Computed once per forecast (not per simulation), injected into all agent prompts
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from mirofish_forecast.config import constants
@@ -188,16 +188,11 @@ def _adr_pct_used(bars: list[dict]) -> float:
     if len(rth_bars) < 2:
         return 0.0
 
-    today_range = (
-        max(float(b["high"]) for b in rth_bars)
-        - min(float(b["low"]) for b in rth_bars)
-    )
+    today_range = max(float(b["high"]) for b in rth_bars) - min(float(b["low"]) for b in rth_bars)
 
     # Estimate ADR from available bars
     recent = bars[-78:] if len(bars) >= 78 else bars
-    avg_bar_range = (
-        sum(float(b["high"]) - float(b["low"]) for b in recent) / len(recent)
-    )
+    avg_bar_range = sum(float(b["high"]) - float(b["low"]) for b in recent) / len(recent)
     estimated_adr = avg_bar_range * 78  # Full RTH session
 
     if estimated_adr < 0.01:
@@ -214,17 +209,13 @@ def _get_todays_rth_bars(bars: list[dict]) -> list[dict]:
 
     for bar in bars:
         try:
-            bar_dt = datetime.fromtimestamp(
-                int(bar["time"]), tz=timezone.utc
-            ).astimezone(ET)
+            bar_dt = datetime.fromtimestamp(int(bar["time"]), tz=UTC).astimezone(ET)
             bar_date = bar_dt.date()
             bar_minutes = bar_dt.hour * 60 + bar_dt.minute
 
             if (
                 bar_date == today
-                and constants.RTH_START_MINUTES
-                <= bar_minutes
-                < constants.RTH_END_MINUTES
+                and constants.RTH_START_MINUTES <= bar_minutes < constants.RTH_END_MINUTES
             ):
                 rth_bars.append(bar)
         except Exception:
@@ -249,11 +240,7 @@ def format_analytics_for_prompt(analytics: dict) -> str:
         score_label = "LOW — CAUTION"
 
     consec = analytics.get("consecutive_trend_bars", 0)
-    consec_str = (
-        f"{abs(consec)} {'bullish' if consec > 0 else 'bearish'}"
-        if consec != 0
-        else "0"
-    )
+    consec_str = f"{abs(consec)} {'bullish' if consec > 0 else 'bearish'}" if consec != 0 else "0"
 
     lines = [
         "=== PRE-COMPUTED BAR ANALYTICS ===",
