@@ -15,7 +15,7 @@ ET = ZoneInfo("America/New_York")
 
 def _rth_bar(offset_bars: int, date_override: date | None = None) -> dict:
     """Make a synthetic 5-min bar at RTH open + offset_bars * 5min."""
-    today = date_override or date.today()
+    today = date_override or datetime.now(ET).date()
     base_dt = datetime(today.year, today.month, today.day, 9, 30, tzinfo=ET)
     ts = base_dt.timestamp() + offset_bars * 300  # 300s = 5 min
     price = 5000.0 + offset_bars
@@ -31,7 +31,7 @@ def _rth_bar(offset_bars: int, date_override: date | None = None) -> dict:
 
 def _overnight_bar(hour: int, minute: int = 0, date_override: date | None = None) -> dict:
     """Make a bar in the overnight session (before 9:30 AM ET or after 4 PM ET)."""
-    today = date_override or date.today()
+    today = date_override or datetime.now(ET).date()
     dt = datetime(today.year, today.month, today.day, hour, minute, tzinfo=ET)
     ts = dt.timestamp()
     return {
@@ -97,7 +97,7 @@ class TestComputeSessionLevels:
 
     def test_vwap_flat_series_equals_typical_price(self):
         """For bars with constant prices, VWAP should equal the typical price."""
-        today = date.today()
+        today = datetime.now(ET).date()
         base_dt = datetime(today.year, today.month, today.day, 9, 30, tzinfo=ET)
         base_ts = base_dt.timestamp()
         bars = [
@@ -135,7 +135,7 @@ class TestComputeSessionLevels:
         assert abs(levels["ib_range"] - (levels["ib_high"] - levels["ib_low"])) < 0.001
 
     def test_overnight_high_low_computed(self):
-        today = date.today()
+        today = datetime.now(ET).date()
         overnight_bars = [_overnight_bar(h, date_override=today) for h in [2, 3, 4]]
         rth_bars = [_rth_bar(i) for i in range(20)]
         all_bars = overnight_bars + rth_bars
@@ -221,7 +221,7 @@ class TestFormatSessionLevelsText:
 
 class TestFormatBarsForAgents:
     def _make_bars(self, n: int = 10) -> list[dict]:
-        today = date.today()
+        today = datetime.now(ET).date()
         base_dt = datetime(today.year, today.month, today.day, 9, 30, tzinfo=ET)
         base_ts = base_dt.timestamp()
         bars = []
