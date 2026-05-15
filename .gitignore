@@ -14,8 +14,9 @@ htmlcov/
 .DS_Store
 node_modules/
 
-# Brooks corpus data (generated, do not commit)
+# Brooks corpus data (generated, do not commit raw/ocr data)
 data/
+!data/brooks_corpus_enriched.jsonl
 brooks_extract.log
 brooks_upload.log
 brooks_index.log
