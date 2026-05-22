@@ -1,7 +1,7 @@
 """Market Maker Agent — hedging mechanics + GEX regime + volatility positioning.
 
 This replaces the generic CoT prompt for the market_maker agent only.
-The 8-step reasoning structure is preserved, but each step is specialized
+The 9-step reasoning structure is preserved, but each step is specialized
 for dealer hedging mechanics: GEX regime detection, VIX-dependent flow,
 mean-reversion vs momentum dynamics, and expiration effects.
 """
@@ -39,8 +39,8 @@ Prior decisions this simulation: {prior_decisions}
 {instrument_price_guidance}
 
 {historical_analogs}
-=== YOUR 8-STEP ANALYSIS ===
-Work through each step. Be specific and quantitative. Do not skip steps.
+=== YOUR 9-STEP ANALYSIS ===
+Work through each step. Every step's response MUST be a single short sentence of 10-15 words maximum. Keep the entire response extremely compact to avoid truncation. Be specific and quantitative. Do not skip steps.
 
 1. REGIME CLASSIFICATION: Determine the VIX regime. \
 VIX < 15 = low vol (tight ranges, mean-reversion dominant). \
@@ -80,7 +80,24 @@ does this signal confirm or contradict the mechanical flow direction? \
 In mean-reversion, counter-trend signals at extremes are high-value. \
 In momentum, with-trend signals are high-value.
 
-8. COMMITMENT: Based on steps 1-7, commit to a direction. \
+8. HISTORICAL ANALOG CHECK:
+Before committing to a direction, review the Historical Analogs provided above.
+These are real expert-annotated chart setups retrieved because their structure
+resembles the current setup, filtered to your agent perspective.
+
+You MUST:
+- Reference at least one specific analog by its pattern type (e.g. "the
+  spike_and_channel analog" or "Analog 2's bear_channel").
+- State whether that analog SUPPORTS or CONTRADICTS your developing directional
+  lean, and why.
+- If the analogs collectively point one way but the current price action points
+  another, say so explicitly and explain which you weight more heavily and why.
+
+The analogs are evidence to test your read against — not a mandate. You may
+discount them when the current setup genuinely differs, but you must show that
+you considered them.
+
+9. COMMITMENT: Based on steps 1-8, commit to a direction. \
 In mean-reversion regime, lean contrarian (fade extremes). \
 In momentum regime, lean with the flow (follow breakouts). \
 Apply time-of-day multiplier. State confidence 0.55-0.95.\
