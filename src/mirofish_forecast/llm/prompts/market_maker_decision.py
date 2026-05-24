@@ -40,7 +40,10 @@ Prior decisions this simulation: {prior_decisions}
 
 {historical_analogs}
 === YOUR 9-STEP ANALYSIS ===
-Work through each step. Every step's response MUST be a single short sentence of 10-15 words maximum. Keep the entire response extremely compact to avoid truncation. Be specific and quantitative. Do not skip steps.
+Work through each step. Keep each step concise. Mechanical steps (session context, \
+key levels, regime) should be one short sentence. The Historical Analog Check and \
+Commitment steps may use 2-3 sentences when signals conflict — you MUST have room \
+to state which signal you weight and why. Be specific and quantitative. Do not skip steps.
 
 1. REGIME CLASSIFICATION: Determine the VIX regime. \
 VIX < 15 = low vol (tight ranges, mean-reversion dominant). \
@@ -93,9 +96,25 @@ You MUST:
 - If the analogs collectively point one way but the current price action points
   another, say so explicitly and explain which you weight more heavily and why.
 
+CONSTRAINT COHERENCE: If your analog-based lean conflicts with a hard
+directional constraint you established in an earlier step (for example, the
+Always-In direction), you may NOT silently contradict it. You must do one of
+two things, explicitly:
+  (1) Resolve in favor of the earlier constraint — analogs inform conviction
+      WITHIN your directional framework but do not by themselves override it; or
+  (2) Revise the earlier read — but ONLY if the analogs together with the
+      current price action are genuine evidence that the constraint should
+      change. If you revise, say so directly (e.g. "I am revising my Step-4
+      Always-In read from Long to Short because ...") and name the specific
+      reversal evidence that justifies it.
+An unacknowledged reversal between a constraint you stated earlier and your
+final commitment is NOT permitted. State which path you took and why.
+
 The analogs are evidence to test your read against — not a mandate. You may
 discount them when the current setup genuinely differs, but you must show that
 you considered them.
+
+Reference the actual analogs provided here, not generic Brooks principles.
 
 9. COMMITMENT: Based on steps 1-8, commit to a direction. \
 In mean-reversion regime, lean contrarian (fade extremes). \
