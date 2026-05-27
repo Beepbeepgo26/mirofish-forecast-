@@ -62,7 +62,8 @@ mirofish-forecast-/
 │   │   ├── fear_greed_client.py   # CNN Fear & Greed
 │   │   ├── vix_client.py          # VIX term structure
 │   │   ├── economic_calendar.py   # FOMC/CPI/NFP/GDP/PPI/PCE/ISM
-│   │   └── session_levels.py      # Daily/overnight reference levels
+│   │   ├── session_levels.py      # Daily/overnight reference levels
+│   │   └── static/                # fomc_schedule.json (FOMC meeting dates)
 │   ├── ml/                        # LightGBM fast path
 │   │   ├── feature_extractor.py   # 25 features (22 direction + 3 cross-asset)
 │   │   ├── fast_path.py           # FastPathRunner (sub-5s inference)
@@ -249,7 +250,7 @@ CI runs with placeholder values (see `.github/workflows/ci.yml`); reuse those wh
 
 ## 8. Testing
 
-- 35+ unit test files in `tests/unit/` (one per module — `test_pipeline.py`, `test_databento_client.py`, `test_cqr.py`, `test_aci.py`, `test_signal_bar.py`, etc.).
+- 37 unit test files in `tests/unit/` (one per module — `test_pipeline.py`, `test_databento_client.py`, `test_cqr.py`, `test_aci.py`, `test_signal_bar.py`, etc.).
 - 2 Flask integration tests in `tests/integration/` (`test_forecast_routes.py`, `test_market_routes.py`).
 - `tests/conftest.py` provides:
   - `mock_settings` — sets the `MIROFISH_*` env vars and clears the settings cache.
