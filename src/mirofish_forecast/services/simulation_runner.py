@@ -753,7 +753,7 @@ class MonteCarloRunner:
                         },
                     ],
                     temperature=temperature,
-                    max_tokens=400,
+                    max_tokens=2000,
                     timeout=15,
                 )
                 cot_reasoning = cot_response.choices[0].message.content or ""
