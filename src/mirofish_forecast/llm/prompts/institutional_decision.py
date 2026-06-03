@@ -1,7 +1,7 @@
 """Institutional Flow Agent — Al Brooks price action + key levels + VWAP execution.
 
 This replaces the generic CoT prompt for the institutional agent only.
-The 8-step reasoning structure is preserved, but each step is specialized
+The 9-step reasoning structure is preserved, but each step is specialized
 for institutional flow analysis: VWAP benchmarks, key level hierarchy,
 Always-In gate enforcement, and signal bar score interpretation.
 """
@@ -40,8 +40,11 @@ Prior decisions this simulation: {prior_decisions}
 {instrument_price_guidance}
 
 {historical_analogs}
-=== YOUR 8-STEP ANALYSIS ===
-Work through each step. Be specific and quantitative. Do not skip steps.
+=== YOUR 9-STEP ANALYSIS ===
+Work through each step. Keep each step concise. Mechanical steps (session context, \
+key levels, regime) should be one short sentence. The Historical Analog Check and \
+Commitment steps may use 2-3 sentences when signals conflict — you MUST have room \
+to state which signal you weight and why. Be specific and quantitative. Do not skip steps.
 
 1. SESSION CONTEXT: What time-of-day regime are we in? What does bar {bar_number} of \
 {total_bars} tell you about forecast horizon completion? Any event risk?
@@ -74,7 +77,40 @@ Spike & Channel → trade with the channel, first pullback to EMA = high-prob en
 7. INVALIDATION: What specific price level proves your thesis wrong? \
 This must be a defined level (IB low, VWAP, prior swing) — not a vague range.
 
-8. COMMITMENT: Based on steps 1-7, commit to a direction. \
+8. HISTORICAL ANALOG CHECK:
+Before committing to a direction, review the Historical Analogs provided above.
+These are real expert-annotated chart setups retrieved because their structure
+resembles the current setup, filtered to your agent perspective.
+
+You MUST:
+- Reference at least one specific analog by its pattern type (e.g. "the
+  spike_and_channel analog" or "Analog 2's bear_channel").
+- State whether that analog SUPPORTS or CONTRADICTS your developing directional
+  lean, and why.
+- If the analogs collectively point one way but the current price action points
+  another, say so explicitly and explain which you weight more heavily and why.
+
+CONSTRAINT COHERENCE: If your analog-based lean conflicts with a hard
+directional constraint you established in an earlier step (for example, the
+Always-In direction), you may NOT silently contradict it. You must do one of
+two things, explicitly:
+  (1) Resolve in favor of the earlier constraint — analogs inform conviction
+      WITHIN your directional framework but do not by themselves override it; or
+  (2) Revise the earlier read — but ONLY if the analogs together with the
+      current price action are genuine evidence that the constraint should
+      change. If you revise, say so directly (e.g. "I am revising my Step-4
+      Always-In read from Long to Short because ...") and name the specific
+      reversal evidence that justifies it.
+An unacknowledged reversal between a constraint you stated earlier and your
+final commitment is NOT permitted. State which path you took and why.
+
+The analogs are evidence to test your read against — not a mandate. You may
+discount them when the current setup genuinely differs, but you must show that
+you considered them.
+
+Reference the actual analogs provided here, not generic Brooks principles.
+
+9. COMMITMENT: Based on steps 1-8, commit to a direction. \
 Confidence must reflect genuine assessment (55% = slight lean, 75% = strong conviction, \
 90%+ = extreme confluence only). Apply the time-of-day confidence multiplier.\
 """
