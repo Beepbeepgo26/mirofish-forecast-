@@ -170,9 +170,9 @@ class TestCheckOutcome:
             result = tracker.check_outcome("test")
 
         assert result is not None
-        assert result.outcome_checked is False        # skipped, not scored
-        assert result.actual_price is None             # nothing recorded
-        mock_yf.Ticker.assert_not_called()             # current-price fallback is gone
+        assert result.outcome_checked is False  # skipped, not scored
+        assert result.actual_price is None  # nothing recorded
+        mock_yf.Ticker.assert_not_called()  # current-price fallback is gone
 
     def test_selects_utc_correct_bar_with_eastern_index(
         self, mock_settings, mock_cache: MagicMock, _patch_cache
