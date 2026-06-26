@@ -253,17 +253,25 @@ class ForecastTracker:
                 )
 
             if data.empty:
-                # Final fallback: current price (better than nothing)
+                # No historical bars available. Do NOT substitute the current
+                # price here: that records "price now" as the actual price at a
+                # PAST horizon, silently poisoning residuals and CQR coverage.
+                # Skip scoring instead — the caller treats None as "not scoreable"
+                # and the forecast is retried on later passes until its TTL.
                 logger.warning(
-                    f"No historical bars for {ticker} near {target_time}, "
-                    "falling back to current price"
+                    f"No historical bars for {ticker} near {target_time}; "
+                    "skipping outcome scoring (no actual price recorded)"
                 )
-                tick = yf.Ticker(ticker)
-                price = tick.fast_info.last_price
-                return round(float(price), 2) if price else None
+                return None
 
-            # Remove timezone info for comparison
-            data.index = data.index.tz_localize(None)
+            # Align bars to naive-UTC before comparing. target_time is naive UTC
+            # (built from tracking.created_at, itself naive UTC). yfinance intraday
+            # returns a tz-aware (US/Eastern) index; dropping the tz outright would
+            # compare Eastern wall-clock against UTC and mis-select the bar by 4-5
+            # hours. Convert to UTC first, then drop. Guard the rare tz-naive case
+            # (already assumed UTC) so we never raise.
+            if data.index.tz is not None:
+                data.index = data.index.tz_convert("UTC").tz_localize(None)
             diffs = abs(data.index - target_time)
             closest_idx = diffs.argmin()
             return round(float(data.iloc[closest_idx]["Close"]), 2)

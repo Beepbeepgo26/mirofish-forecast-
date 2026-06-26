@@ -138,6 +138,87 @@ class TestCheckOutcome:
         assert result.p50_hit is True
         assert result.p90_hit is True
 
+    def test_skips_scoring_when_no_bars(
+        self, mock_settings, mock_cache: MagicMock, _patch_cache
+    ) -> None:
+        """F1: with no yfinance bars, skip scoring — never fabricate from the live quote."""
+        import pandas as pd
+
+        old_time = datetime.utcnow() - timedelta(hours=3)
+        tracking = ForecastTracking(
+            forecast_id="test",
+            instrument="ES",
+            forecast_horizon_minutes=120,
+            created_at=old_time,
+            current_price=5420.0,
+            predicted_median=5425.0,
+            predicted_p5=5405.0,
+            predicted_p25=5415.0,
+            predicted_p75=5435.0,
+            predicted_p95=5445.0,
+            predicted_prob_up=0.6,
+            predicted_prob_down=0.3,
+            predicted_prob_flat=0.1,
+        )
+        mock_cache.get.return_value = tracking.model_dump_json()
+
+        with patch("mirofish_forecast.calibration.tracking.yf") as mock_yf:
+            mock_yf.download.return_value = pd.DataFrame()  # empty for both 1m and 5m
+            # Decoy "current price" — must NOT be recorded as the actual.
+            mock_yf.Ticker.return_value.fast_info.last_price = 9999.0
+            tracker = ForecastTracker(mock_settings)
+            result = tracker.check_outcome("test")
+
+        assert result is not None
+        assert result.outcome_checked is False  # skipped, not scored
+        assert result.actual_price is None  # nothing recorded
+        mock_yf.Ticker.assert_not_called()  # current-price fallback is gone
+
+    def test_selects_utc_correct_bar_with_eastern_index(
+        self, mock_settings, mock_cache: MagicMock, _patch_cache
+    ) -> None:
+        """F7: tz-aware (Eastern) bars must be converted to UTC, not wall-clock-dropped."""
+        import pandas as pd
+
+        # created_at + 120min -> target_time = 2026-06-01 18:00 UTC (naive)
+        created = datetime(2026, 6, 1, 16, 0, 0)
+        tracking = ForecastTracking(
+            forecast_id="test",
+            instrument="ES",
+            forecast_horizon_minutes=120,
+            created_at=created,
+            current_price=5420.0,
+            predicted_median=5425.0,
+            predicted_p5=5405.0,
+            predicted_p25=5415.0,
+            predicted_p75=5435.0,
+            predicted_p95=5445.0,
+            predicted_prob_up=0.6,
+            predicted_prob_down=0.3,
+            predicted_prob_flat=0.1,
+        )
+        mock_cache.get.return_value = tracking.model_dump_json()
+
+        # Two Eastern-tz bars:
+        #   14:00 EDT == 18:00 UTC  -> CORRECT bar (Close 5430)
+        #   18:00 EDT == 22:00 UTC  -> DECOY whose naive wall-clock (18:00) collides
+        #                              with target_time under the OLD buggy code (5400)
+        idx = pd.DatetimeIndex(
+            pd.to_datetime(["2026-06-01 14:00:00", "2026-06-01 18:00:00"])
+        ).tz_localize("America/New_York")
+        mock_df = pd.DataFrame({"Close": [5430.0, 5400.0]}, index=idx)
+
+        with patch("mirofish_forecast.calibration.tracking.yf") as mock_yf:
+            mock_yf.download.return_value = mock_df
+            tracker = ForecastTracker(mock_settings)
+            result = tracker.check_outcome("test")
+
+        assert result is not None
+        assert result.outcome_checked
+        # Fixed code converts to UTC and picks the 18:00-UTC bar (5430).
+        # Old buggy code dropped tz and picked the 18:00-Eastern decoy (5400).
+        assert result.actual_price == 5430.0
+
 
 class TestGetCalibrationFeatures:
     def test_extracts_features(self, mock_settings, mock_cache: MagicMock, _patch_cache) -> None:
