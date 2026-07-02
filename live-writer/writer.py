@@ -171,9 +171,14 @@ def main():
             price_key = f"mf:databento:price:{instrument}"
             redis.set(price_key, str(round(c, 2)), ex=PRICE_TTL)
 
-            # Add to sorted set for range queries
+            # Add to sorted set for range queries.
+            # IMPORTANT: the member must be the LOGICAL bar key (no "mf:" prefix).
+            # The forecast reader's CacheClient prepends "mf:" on every get(); storing the
+            # physical key here produced "mf:mf:databento:bar:..." lookups, so every bar
+            # read missed and the forecast silently fell back to yfinance.
             list_key = f"mf:databento:barlist:{instrument}"
-            redis.zadd(list_key, {bar_key: float(ts)})
+            logical_bar_key = f"databento:bar:{instrument}:{ts}"
+            redis.zadd(list_key, {logical_bar_key: float(ts)})
 
             # Trim old entries from sorted set (keep 48 hours)
             cutoff = ts - BAR_TTL
