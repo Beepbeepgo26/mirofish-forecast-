@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 import threading
 import uuid
 from datetime import datetime
@@ -107,6 +108,22 @@ def start_forecast():
     path_override = body.get("path")
     if path_override not in (None, "fast", "full"):
         path_override = None
+
+    # ES-only: reject any other instrument at the boundary (same extraction as the parser)
+    instrument_match = re.search(constants.REGEX_INSTRUMENT, raw_query, re.IGNORECASE)
+    instrument = (
+        instrument_match.group(0).upper() if instrument_match else constants.DEFAULT_INSTRUMENT
+    )
+    if instrument not in constants.SUPPORTED_INSTRUMENTS:
+        return (
+            jsonify(
+                {
+                    "error": "unsupported_instrument",
+                    "message": constants.UNSUPPORTED_INSTRUMENT_MESSAGE,
+                }
+            ),
+            400,
+        )
 
     # Fail closed: refuse to start when no live price is available (never estimate)
     settings = current_app.config["SETTINGS"]

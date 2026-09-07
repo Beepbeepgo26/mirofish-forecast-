@@ -91,6 +91,29 @@ class TestForecastStart:
         assert "Forecast refused rather than estimated" in resp.json["message"]
         pipeline_cls.assert_not_called()
 
+    @pytest.mark.parametrize("symbol", ["NQ", "CL", "GC", "SPY"])
+    def test_start_rejects_unsupported_instrument(self, client, symbol):
+        """ES-only: any other instrument is refused at the boundary, before any work starts."""
+        with patch("mirofish_forecast.api.forecast_routes.ForecastPipeline") as pipeline_cls:
+            resp = client.post(
+                "/api/forecast/start",
+                json={"query": f"Where will {symbol} be in 30 minutes?"},
+            )
+
+        assert resp.status_code == 400
+        assert resp.json["error"] == "unsupported_instrument"
+        assert "Only ES is currently supported" in resp.json["message"]
+        pipeline_cls.assert_not_called()
+
+    def test_start_accepts_query_without_instrument_token(self, client, live_price):
+        """No ticker in the query defaults to ES, which is still accepted."""
+        with patch("mirofish_forecast.api.forecast_routes.ForecastPipeline"):
+            resp = client.post(
+                "/api/forecast/start",
+                json={"query": "What's the range for the next 2 hours?"},
+            )
+            assert resp.status_code == 202
+
 
 class TestForecastStream:
     def test_stream_returns_404_for_unknown_id(self, client):

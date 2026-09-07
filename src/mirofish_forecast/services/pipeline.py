@@ -90,6 +90,17 @@ class ForecastPipeline:
                 return
             self._emit_stage(constants.STAGE_PARSING)
             query = self._parser.parse(raw_query, sim_preset, sim_count)
+            # ES-only: the route rejects ticker tokens; this catches LLM-inferred instruments
+            if query.instrument.upper() not in constants.SUPPORTED_INSTRUMENTS:
+                logger.error(f"Forecast refused: unsupported instrument {query.instrument}")
+                self._emit_event(
+                    constants.STAGE_ERROR,
+                    {
+                        "error": "unsupported_instrument",
+                        "message": constants.UNSUPPORTED_INSTRUMENT_MESSAGE,
+                    },
+                )
+                return
             self._emit_stage_complete(
                 constants.STAGE_PARSING,
                 {

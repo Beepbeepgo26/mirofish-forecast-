@@ -269,7 +269,12 @@ INSTRUMENT_CONFIG: dict[str, dict] = {
     },
 }
 
-SUPPORTED_INSTRUMENTS = list(INSTRUMENT_CONFIG.keys())
+# ES-only: the models are trained ES-only. INSTRUMENT_CONFIG keeps NQ/CL/GC metadata for
+# prompts, but only ES is accepted by the API and the pipeline.
+SUPPORTED_INSTRUMENTS: frozenset[str] = frozenset({"ES"})
+UNSUPPORTED_INSTRUMENT_MESSAGE = (
+    "Only ES is currently supported. Models are trained ES-only; NQ, CL and GC are disabled."
+)
 
 
 def get_instrument_config(instrument: str) -> dict:

@@ -75,7 +75,7 @@ const presets: SimPreset[] = ['simple', 'quick', 'standard', 'deep']
         v-model="query"
         :disabled="disabled"
         rows="1"
-        placeholder="Ask about ES, NQ, CL, or GC futures..."
+        placeholder="Ask about ES futures..."
         class="flex-1 bg-[#1a1a24] border border-[#2e2e3e] rounded-lg px-4 py-2.5 text-sm text-[#e5e7eb] placeholder-[#6b7280] resize-none focus:outline-none focus:border-[#2962FF] transition-colors disabled:opacity-50"
         @keydown="handleKeydown"
       />

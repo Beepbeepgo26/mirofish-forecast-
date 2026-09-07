@@ -139,7 +139,7 @@ export function useForecastStream() {
 
       if (!response.ok) {
         const err = await response.json()
-        throw new Error(err.error || `HTTP ${response.status}`)
+        throw new Error(err.message || err.error || `HTTP ${response.status}`)
       }
 
       const { stream_url, forecast_id } = await response.json()
