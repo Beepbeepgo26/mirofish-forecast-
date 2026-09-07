@@ -12,7 +12,7 @@ from mirofish_forecast.data.fred_client import FredClient
 from mirofish_forecast.data.ib_client import IBClient
 from mirofish_forecast.data.vix_client import VixClient
 from mirofish_forecast.data.yfinance_client import YFinanceClient
-from mirofish_forecast.models.market import MarketContext
+from mirofish_forecast.models.market import CrossAssetSnapshot, MarketContext
 
 logger = logging.getLogger(__name__)
 
@@ -39,24 +39,9 @@ class DataAggregator:
 
         macro = self._fred.get_macro_indicators()
         vix = self._vix.get_vix_data()
-        cross_asset = self._yfinance.get_cross_asset_snapshot()
+        cross_asset = self.get_cross_asset_snapshot()
         fear_greed = self._fear_greed.get_fear_greed()
         internals = self._ib.get_market_internals()
-
-        # Override CME prices with Databento (much fresher than yfinance)
-        if self._databento.is_enabled and self._databento.is_live_writer_healthy():
-            overrides = {}
-            for instrument, field in [
-                ("ES", "es_price"),
-                ("NQ", "nq_price"),
-                ("CL", "crude_price"),
-                ("GC", "gc_price"),
-            ]:
-                db_price = self._databento.get_latest_price(instrument)
-                if db_price is not None:
-                    overrides[field] = db_price
-            if overrides:
-                cross_asset = cross_asset.model_copy(update=overrides)
 
         # Pull economic calendar events
         try:
@@ -80,6 +65,32 @@ class DataAggregator:
 
         logger.info("Market context assembled successfully")
         return context
+
+    def get_cross_asset_snapshot(self) -> CrossAssetSnapshot:
+        """Cross-asset prices: yfinance snapshot with Databento overrides.
+
+        This is the single source of the live instrument price used by the
+        forecast pipeline. The /api/forecast/start pre-flight reads the same
+        method so the two can never disagree.
+        """
+        cross_asset = self._yfinance.get_cross_asset_snapshot()
+
+        # Override CME prices with Databento (much fresher than yfinance)
+        if self._databento.is_enabled and self._databento.is_live_writer_healthy():
+            overrides = {}
+            for instrument, field in [
+                ("ES", "es_price"),
+                ("NQ", "nq_price"),
+                ("CL", "crude_price"),
+                ("GC", "gc_price"),
+            ]:
+                db_price = self._databento.get_latest_price(instrument)
+                if db_price is not None:
+                    overrides[field] = db_price
+            if overrides:
+                cross_asset = cross_asset.model_copy(update=overrides)
+
+        return cross_asset
 
     def get_instrument_price(self, instrument: str) -> float | None:
         """Get current price — Databento first, yfinance fallback."""

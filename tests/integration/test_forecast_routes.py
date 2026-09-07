@@ -2,10 +2,27 @@
 
 from unittest.mock import patch
 
+import pytest
+
+from mirofish_forecast.models.market import CrossAssetSnapshot
+
+_AGGREGATOR = "mirofish_forecast.api.forecast_routes.DataAggregator"
+_PIPELINE = "mirofish_forecast.api.forecast_routes.ForecastPipeline"
+
+
+@pytest.fixture
+def live_price():
+    """Make the /start pre-flight see a live ES price."""
+    with patch(_AGGREGATOR) as aggregator_cls:
+        aggregator_cls.return_value.get_cross_asset_snapshot.return_value = CrossAssetSnapshot(
+            es_price=5420.0
+        )
+        yield aggregator_cls
+
 
 class TestForecastStart:
-    def test_start_returns_forecast_id(self, client):
-        with patch("mirofish_forecast.api.forecast_routes.ForecastPipeline"):
+    def test_start_returns_forecast_id(self, client, live_price):
+        with patch(_PIPELINE):
             resp = client.post(
                 "/api/forecast/start",
                 json={"query": "Where will ES be in 2 hours?"},
@@ -25,8 +42,8 @@ class TestForecastStart:
         resp = client.post("/api/forecast/start", json={})
         assert resp.status_code == 400
 
-    def test_start_accepts_sim_preset(self, client):
-        with patch("mirofish_forecast.api.forecast_routes.ForecastPipeline"):
+    def test_start_accepts_sim_preset(self, client, live_price):
+        with patch(_PIPELINE):
             resp = client.post(
                 "/api/forecast/start",
                 json={
@@ -46,8 +63,8 @@ class TestForecastStart:
         )
         assert resp.status_code == 400
 
-    def test_start_accepts_valid_sim_count(self, client):
-        with patch("mirofish_forecast.api.forecast_routes.ForecastPipeline"):
+    def test_start_accepts_valid_sim_count(self, client, live_price):
+        with patch(_PIPELINE):
             resp = client.post(
                 "/api/forecast/start",
                 json={
@@ -56,6 +73,21 @@ class TestForecastStart:
                 },
             )
             assert resp.status_code == 202
+
+    def test_start_refuses_when_live_price_missing(self, client):
+        """Fail closed: no live price -> 503 with a distinct code, no session, no pipeline."""
+        with patch(_AGGREGATOR) as aggregator_cls, patch(_PIPELINE) as pipeline_cls:
+            aggregator_cls.return_value.get_cross_asset_snapshot.return_value = CrossAssetSnapshot()
+            resp = client.post(
+                "/api/forecast/start",
+                json={"query": "Where will ES be in 2 hours?"},
+            )
+
+        assert resp.status_code == 503
+        assert resp.json["error"] == "market_data_unavailable"
+        assert "Live price unavailable for ES" in resp.json["message"]
+        assert "Forecast refused rather than estimated" in resp.json["message"]
+        pipeline_cls.assert_not_called()
 
 
 class TestForecastStream:

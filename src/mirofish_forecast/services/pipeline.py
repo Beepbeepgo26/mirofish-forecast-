@@ -17,6 +17,7 @@ from mirofish_forecast.data.session_levels import (
     format_bars_for_agents,
     format_session_levels_text,
 )
+from mirofish_forecast.exceptions import MissingMarketDataError
 from mirofish_forecast.ml.fast_path import FastPathRunner
 from mirofish_forecast.models.forecast import (
     ForecastResult,
@@ -278,6 +279,13 @@ class ForecastPipeline:
             except Exception:
                 logger.warning("Failed to store forecast tracking", exc_info=True)
 
+        except MissingMarketDataError as e:
+            # Fail closed: "the data is down" must read differently from "the app crashed"
+            logger.error(f"Forecast refused: {e}")
+            self._emit_event(
+                constants.STAGE_ERROR,
+                {"error": "market_data_unavailable", "message": str(e)},
+            )
         except Exception as e:
             logger.error(f"Pipeline error: {e}", exc_info=True)
             self._emit_event(

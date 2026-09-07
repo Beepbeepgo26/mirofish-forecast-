@@ -12,6 +12,9 @@ from flask import Blueprint, Response, current_app, jsonify, request
 
 from mirofish_forecast.calibration.tracking import ForecastTracker
 from mirofish_forecast.config import constants
+from mirofish_forecast.config.settings import Settings
+from mirofish_forecast.exceptions import MissingMarketDataError, require_price
+from mirofish_forecast.services.data_aggregator import DataAggregator
 from mirofish_forecast.services.pipeline import ForecastPipeline
 
 logger = logging.getLogger(__name__)
@@ -34,6 +37,16 @@ def _cleanup_expired_sessions() -> None:
     for fid in expired:
         del _active_sessions[fid]
         logger.info(f"Cleaned up expired forecast session: {fid}")
+
+
+def _require_live_price(settings: Settings) -> None:
+    """Fail closed: raise MissingMarketDataError if no live ES price is available.
+
+    Reads the same source the pipeline uses (DataAggregator.get_cross_asset_snapshot)
+    so this pre-flight and the forecast itself can never disagree.
+    """
+    es_price = DataAggregator(settings).get_cross_asset_snapshot().es_price
+    require_price(es_price, "ES", "cross_asset.es_price", "forecast_routes.start_forecast")
 
 
 @forecast_bp.route("/start", methods=["POST"])
@@ -95,6 +108,14 @@ def start_forecast():
     if path_override not in (None, "fast", "full"):
         path_override = None
 
+    # Fail closed: refuse to start when no live price is available (never estimate)
+    settings = current_app.config["SETTINGS"]
+    try:
+        _require_live_price(settings)
+    except MissingMarketDataError as e:
+        logger.error(f"Forecast refused: {e}")
+        return jsonify({"error": "market_data_unavailable", "message": str(e)}), 503
+
     # Create session with cancel event
     forecast_id = uuid.uuid4().hex[:12]
     event_queue: Queue = Queue()
@@ -108,7 +129,6 @@ def start_forecast():
     }
 
     # Launch pipeline in background thread
-    settings = current_app.config["SETTINGS"]
     pipeline = ForecastPipeline(settings, event_queue, cancel_event=cancel_event)
 
     thread = Thread(
