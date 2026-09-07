@@ -164,15 +164,22 @@ class TestMonteCarloRunnerFailsClosed:
 
     @patch("mirofish_forecast.services.simulation_runner.AsyncOpenAI")
     def test_failed_simulation_carries_validated_price(self, mock_async_openai, mock_settings):
-        """Site simulation_runner failure branch: a sim that dies mid-run reports the real price."""
+        """Site simulation_runner failure branch: a sim that dies mid-run reports the real price.
+
+        The scenario price is blanked at the moment of failure, so the old
+        ``scenario.current_price or 5400.0`` would have produced 5400.0 here.
+        """
         mock_client = mock_async_openai.return_value
         mock_client.chat.completions.create = AsyncMock(side_effect=Exception("API Error"))
+        scenario = _make_scenario()
+
+        def _fail_and_lose_price(*_args, **_kwargs):
+            object.__setattr__(scenario, "current_price", None)  # bypass frozen model
+            raise RuntimeError("boom")
 
         runner = MonteCarloRunner(mock_settings)
-        with patch.object(runner, "_aggregate_decisions", side_effect=RuntimeError("boom")):
-            result = asyncio.run(
-                runner._run_single_simulation(0, _make_scenario(), asyncio.Semaphore(1))
-            )
+        with patch.object(runner, "_aggregate_decisions", side_effect=_fail_and_lose_price):
+            result = asyncio.run(runner._run_single_simulation(0, scenario, asyncio.Semaphore(1)))
 
         assert result.success is False
         assert result.final_price == 5420.0

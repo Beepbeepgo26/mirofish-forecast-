@@ -21,8 +21,8 @@ class MissingMarketDataError(RuntimeError):
 def require_price(value: float | None, instrument: str, field: str, context: str) -> float:
     """Return ``value`` if it is a usable price, else raise MissingMarketDataError.
 
-    ``None`` and non-positive values are both treated as missing.
+    ``None``, non-positive values and NaN are all treated as missing.
     """
-    if value is None or value <= 0:
+    if value is None or not value > 0:
         raise MissingMarketDataError(instrument, field, context)
     return value

@@ -7,7 +7,6 @@ import pytest
 from mirofish_forecast.models.market import CrossAssetSnapshot
 
 _AGGREGATOR = "mirofish_forecast.api.forecast_routes.DataAggregator"
-_PIPELINE = "mirofish_forecast.api.forecast_routes.ForecastPipeline"
 
 
 @pytest.fixture
@@ -22,7 +21,7 @@ def live_price():
 
 class TestForecastStart:
     def test_start_returns_forecast_id(self, client, live_price):
-        with patch(_PIPELINE):
+        with patch("mirofish_forecast.api.forecast_routes.ForecastPipeline"):
             resp = client.post(
                 "/api/forecast/start",
                 json={"query": "Where will ES be in 2 hours?"},
@@ -43,7 +42,7 @@ class TestForecastStart:
         assert resp.status_code == 400
 
     def test_start_accepts_sim_preset(self, client, live_price):
-        with patch(_PIPELINE):
+        with patch("mirofish_forecast.api.forecast_routes.ForecastPipeline"):
             resp = client.post(
                 "/api/forecast/start",
                 json={
@@ -64,7 +63,7 @@ class TestForecastStart:
         assert resp.status_code == 400
 
     def test_start_accepts_valid_sim_count(self, client, live_price):
-        with patch(_PIPELINE):
+        with patch("mirofish_forecast.api.forecast_routes.ForecastPipeline"):
             resp = client.post(
                 "/api/forecast/start",
                 json={
@@ -76,7 +75,10 @@ class TestForecastStart:
 
     def test_start_refuses_when_live_price_missing(self, client):
         """Fail closed: no live price -> 503 with a distinct code, no session, no pipeline."""
-        with patch(_AGGREGATOR) as aggregator_cls, patch(_PIPELINE) as pipeline_cls:
+        with (
+            patch(_AGGREGATOR) as aggregator_cls,
+            patch("mirofish_forecast.api.forecast_routes.ForecastPipeline") as pipeline_cls,
+        ):
             aggregator_cls.return_value.get_cross_asset_snapshot.return_value = CrossAssetSnapshot()
             resp = client.post(
                 "/api/forecast/start",
