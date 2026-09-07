@@ -11,6 +11,7 @@ from datetime import datetime
 from mirofish_forecast.config import constants
 from mirofish_forecast.config.constants import get_instrument_config
 from mirofish_forecast.config.settings import Settings
+from mirofish_forecast.exceptions import require_price
 from mirofish_forecast.llm.client import LLMClient
 from mirofish_forecast.llm.prompts.synthesize_forecast import (
     SYNTHESIZE_FORECAST_SYSTEM_PROMPT,
@@ -87,7 +88,12 @@ class ForecastSynthesizer:
                 ),
             )
 
-        current_price = scenario.current_price or 5400.0
+        current_price = require_price(
+            scenario.current_price,
+            scenario.instrument,
+            "current_price",
+            "forecast_synthesizer.synthesize",
+        )
         final_prices = [r.final_price for r in successful]
 
         # Compute distribution statistics

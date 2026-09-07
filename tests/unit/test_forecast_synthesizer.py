@@ -4,6 +4,9 @@ import time
 from datetime import datetime
 from unittest.mock import patch
 
+import pytest
+
+from mirofish_forecast.exceptions import MissingMarketDataError
 from mirofish_forecast.models.forecast import AgentDecision, SimulationResult
 from mirofish_forecast.models.market import (
     CrossAssetSnapshot,
@@ -154,3 +157,23 @@ class TestForecastSynthesizer:
 
         assert "could not be generated" in forecast.forecast_text.lower()
         assert forecast.build_method == "error"
+
+
+class TestForecastSynthesizerFailsClosed:
+    @patch("mirofish_forecast.services.forecast_synthesizer.LLMClient")
+    def test_refuses_when_price_missing(self, mock_llm_cls, mock_settings):
+        """Site forecast_synthesizer.synthesize: no 5400.0 fallback, no LLM call."""
+        synth = ForecastSynthesizer(mock_settings)
+        scenario = _make_scenario().model_copy(update={"current_price": None})
+
+        with pytest.raises(MissingMarketDataError, match=r"forecast_synthesizer\.synthesize"):
+            synth.synthesize(
+                results=_make_sim_results(),
+                scenario=scenario,
+                context=_make_context(),
+                forecast_id="test_missing_price",
+                sim_preset="standard",
+                pipeline_start_time=time.time(),
+            )
+
+        mock_llm_cls.return_value.chat.assert_not_called()

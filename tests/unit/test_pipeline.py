@@ -5,6 +5,7 @@ from queue import Queue
 from unittest.mock import patch
 
 from mirofish_forecast.config import constants
+from mirofish_forecast.exceptions import MissingMarketDataError
 from mirofish_forecast.models.forecast import (
     AgentDecision,
     ForecastResult,
@@ -229,3 +230,72 @@ class TestForecastPipeline:
         assert "forecast" in complete_event
         assert complete_event["forecast"]["instrument"] == "ES"
         assert "forecast_text" in complete_event["forecast"]
+
+    @patch("mirofish_forecast.services.pipeline.ForecastSynthesizer")
+    @patch("mirofish_forecast.services.pipeline.MonteCarloRunner")
+    @patch("mirofish_forecast.services.pipeline.ScenarioBuilder")
+    @patch("mirofish_forecast.services.pipeline.DataAggregator")
+    @patch("mirofish_forecast.services.pipeline.NLPParser")
+    def test_pipeline_emits_market_data_unavailable(
+        self,
+        mock_parser,
+        mock_aggregator,
+        mock_scenario_builder,
+        mock_runner,
+        mock_synthesizer,
+        mock_settings,
+    ):
+        """A missing live price surfaces as a distinct SSE error, not a generic crash."""
+        mock_parser.return_value.parse.return_value = self._make_mock_query()
+        mock_aggregator.return_value.get_market_context.return_value = self._make_mock_context()
+        mock_scenario_builder.return_value.build.side_effect = MissingMarketDataError(
+            "ES", "current_price", "scenario_builder.build"
+        )
+
+        queue = Queue()
+        pipeline = ForecastPipeline(mock_settings, queue)
+        pipeline.run("Where will ES be in 2 hours?", forecast_id="test")
+
+        events = []
+        while not queue.empty():
+            events.append(queue.get())
+
+        error_events = [e for e in events if e["stage"] == constants.STAGE_ERROR]
+        assert len(error_events) == 1
+        assert error_events[0]["error"] == "market_data_unavailable"
+        assert "Live price unavailable for ES" in error_events[0]["message"]
+        assert constants.STAGE_COMPLETE not in [e["stage"] for e in events]
+        mock_runner.return_value.run.assert_not_called()
+
+    @patch("mirofish_forecast.services.pipeline.ForecastSynthesizer")
+    @patch("mirofish_forecast.services.pipeline.MonteCarloRunner")
+    @patch("mirofish_forecast.services.pipeline.ScenarioBuilder")
+    @patch("mirofish_forecast.services.pipeline.DataAggregator")
+    @patch("mirofish_forecast.services.pipeline.NLPParser")
+    def test_pipeline_refuses_unsupported_instrument(
+        self,
+        mock_parser,
+        mock_aggregator,
+        mock_scenario_builder,
+        mock_runner,
+        mock_synthesizer,
+        mock_settings,
+    ):
+        """ES-only: an instrument inferred without a ticker token is refused right after parsing."""
+        mock_parser.return_value.parse.return_value = self._make_mock_query().model_copy(
+            update={"instrument": "NQ"}
+        )
+
+        queue = Queue()
+        pipeline = ForecastPipeline(mock_settings, queue)
+        pipeline.run("Nasdaq futures next hour", forecast_id="test")
+
+        events = []
+        while not queue.empty():
+            events.append(queue.get())
+
+        error_events = [e for e in events if e["stage"] == constants.STAGE_ERROR]
+        assert len(error_events) == 1
+        assert error_events[0]["error"] == "unsupported_instrument"
+        assert "Only ES is currently supported" in error_events[0]["message"]
+        mock_aggregator.return_value.get_market_context.assert_not_called()

@@ -28,6 +28,7 @@ from openai import AsyncOpenAI
 
 from mirofish_forecast.config import constants
 from mirofish_forecast.config.settings import Settings
+from mirofish_forecast.exceptions import require_price
 from mirofish_forecast.llm.prompts.agent_decision import (
     AGENT_EXTRACT_PROMPT,
     get_agent_cot_prompt,
@@ -242,7 +243,12 @@ class MonteCarloRunner:
             rng.uniform(constants.SIM_TEMPERATURE_MIN, constants.SIM_TEMPERATURE_MAX), 2
         )
 
-        current_price = scenario.current_price or 5400.0
+        current_price = require_price(
+            scenario.current_price,
+            scenario.instrument,
+            "current_price",
+            "simulation_runner._run_single_simulation",
+        )
         price_path = [current_price]
         all_decisions: list[AgentDecision] = []
         minutes_per_bar = scenario.forecast_horizon_minutes / constants.SIM_BARS_PER_HORIZON
@@ -422,7 +428,7 @@ class MonteCarloRunner:
                 sim_id=sim_id,
                 seed=seed,
                 temperature=temperature,
-                final_price=scenario.current_price or 5400.0,
+                final_price=price_path[0],  # validated start price, never a placeholder
                 success=False,
                 error=str(e),
             )

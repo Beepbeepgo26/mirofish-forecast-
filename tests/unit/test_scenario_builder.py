@@ -3,6 +3,9 @@
 from datetime import datetime
 from unittest.mock import patch
 
+import pytest
+
+from mirofish_forecast.exceptions import MissingMarketDataError
 from mirofish_forecast.models.market import (
     CrossAssetSnapshot,
     FearGreedData,
@@ -181,3 +184,30 @@ class TestContextBlockTemplates:
         text = scenario.market_maker_context.context_text
         # New template shows "N/A" for TICK/ADD/VOLD and "offline" in the footnote
         assert "N/A" in text or "offline" in text  # Should indicate IB relay not configured
+
+
+class TestScenarioBuilderFailsClosed:
+    """A missing live price must raise, never be replaced by a placeholder."""
+
+    @patch("mirofish_forecast.services.scenario_builder.LLMClient")
+    def test_build_refuses_when_price_missing(self, mock_llm_cls, mock_settings):
+        """build() gate: raises before any LLM call when no price can be resolved."""
+        builder = ScenarioBuilder(mock_settings)
+        context = _make_context(cross_asset=CrossAssetSnapshot())
+
+        with patch("yfinance.Ticker", side_effect=Exception("yfinance down")):
+            with pytest.raises(MissingMarketDataError, match=r"in scenario_builder\.build\."):
+                builder.build(_make_query(), context)
+
+        mock_llm_cls.return_value.parse_structured.assert_not_called()
+        mock_llm_cls.return_value.chat.assert_not_called()
+
+    @patch("mirofish_forecast.services.scenario_builder.LLMClient")
+    def test_template_refuses_when_price_missing(self, mock_llm_cls, mock_settings):
+        """Site scenario_builder._build_scenarios_template: no 5400.0 fallback."""
+        builder = ScenarioBuilder(mock_settings)
+        context = _make_context(cross_asset=CrossAssetSnapshot())
+
+        with patch("yfinance.Ticker", side_effect=Exception("yfinance down")):
+            with pytest.raises(MissingMarketDataError, match=r"_build_scenarios_template"):
+                builder._build_scenarios_template(_make_query(), context)

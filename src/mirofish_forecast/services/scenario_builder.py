@@ -10,6 +10,7 @@ from datetime import datetime
 
 from mirofish_forecast.config.constants import get_instrument_config
 from mirofish_forecast.config.settings import Settings
+from mirofish_forecast.exceptions import require_price
 from mirofish_forecast.llm.client import LLMClient
 from mirofish_forecast.llm.prompts.build_scenarios import BUILD_SCENARIOS_SYSTEM_PROMPT
 from mirofish_forecast.llm.prompts.institutional_context import (
@@ -72,6 +73,14 @@ class ScenarioBuilder:
             f"Building scenario for {query.instrument} ({query.forecast_horizon_minutes}min)"
         )
 
+        # Fail closed: resolve the live price before any LLM calls; never estimate it
+        current_price = require_price(
+            self._resolve_price(query.instrument, context),
+            query.instrument,
+            "current_price",
+            "scenario_builder.build",
+        )
+
         # Step 1: Generate agent-specific context blocks (with live session levels)
         inst_ctx, retail_ctx, mm_ctx = self._build_context_blocks(
             query, context, session_levels=session_levels
@@ -83,7 +92,7 @@ class ScenarioBuilder:
         return SimulationScenario(
             instrument=query.instrument,
             forecast_horizon_minutes=query.forecast_horizon_minutes,
-            current_price=self._resolve_price(query.instrument, context),
+            current_price=current_price,
             target_time=query.target_time,
             market_regime=scenario_data["market_regime"],
             always_in_direction=scenario_data["always_in_direction"],
@@ -458,7 +467,12 @@ class ScenarioBuilder:
     def _build_scenarios_template(self, query: ForecastQuery, context: MarketContext) -> dict:
         """Deterministic fallback scenario generation based on VIX regime and Fear & Greed."""
         inst_config = get_instrument_config(query.instrument)
-        current_price = self._resolve_price(query.instrument, context) or 5400.0
+        current_price = require_price(
+            self._resolve_price(query.instrument, context),
+            query.instrument,
+            "current_price",
+            "scenario_builder._build_scenarios_template",
+        )
         vix = context.vix.spot or 20.0
         fg = context.fear_greed.value or 50.0
 

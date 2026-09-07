@@ -50,7 +50,7 @@ watch(error, (val) => {
           MiroFish <span class="text-[#2962FF]">Forecast</span>
         </div>
         <p class="text-[#6b7280] text-sm max-w-md">
-          Ask a question about ES, NQ, CL, or GC futures. Try "Where will ES be in 2 hours?" or "NQ forecast for Monday"
+          Ask a question about ES futures. Try "Where will ES be in 2 hours?" or "ES forecast for Monday"
         </p>
       </div>
 

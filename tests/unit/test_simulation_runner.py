@@ -1,9 +1,13 @@
 """Test Monte Carlo runner — uses mocked LLM responses."""
 
+import asyncio
 import json
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
+from mirofish_forecast.exceptions import MissingMarketDataError
 from mirofish_forecast.models.scenario import (
     AgentContextBlock,
     MarketRegime,
@@ -146,3 +150,36 @@ class TestMonteCarloRunner:
                 assert drift_pct < 0.02, (
                     f"Price drifted {drift_pct:.1%} to {r.final_price} — clamp is not working"
                 )
+
+
+class TestMonteCarloRunnerFailsClosed:
+    @patch("mirofish_forecast.services.simulation_runner.AsyncOpenAI")
+    def test_single_simulation_refuses_when_price_missing(self, mock_async_openai, mock_settings):
+        """Site simulation_runner._run_single_simulation: no 5400.0 fallback."""
+        runner = MonteCarloRunner(mock_settings)
+        scenario = _make_scenario().model_copy(update={"current_price": None})
+
+        with pytest.raises(MissingMarketDataError, match=r"_run_single_simulation"):
+            asyncio.run(runner._run_single_simulation(0, scenario, asyncio.Semaphore(1)))
+
+    @patch("mirofish_forecast.services.simulation_runner.AsyncOpenAI")
+    def test_failed_simulation_carries_validated_price(self, mock_async_openai, mock_settings):
+        """Site simulation_runner failure branch: a sim that dies mid-run reports the real price.
+
+        The scenario price is blanked at the moment of failure, so the old
+        ``scenario.current_price or 5400.0`` would have produced 5400.0 here.
+        """
+        mock_client = mock_async_openai.return_value
+        mock_client.chat.completions.create = AsyncMock(side_effect=Exception("API Error"))
+        scenario = _make_scenario()
+
+        def _fail_and_lose_price(*_args, **_kwargs):
+            object.__setattr__(scenario, "current_price", None)  # bypass frozen model
+            raise RuntimeError("boom")
+
+        runner = MonteCarloRunner(mock_settings)
+        with patch.object(runner, "_aggregate_decisions", side_effect=_fail_and_lose_price):
+            result = asyncio.run(runner._run_single_simulation(0, scenario, asyncio.Semaphore(1)))
+
+        assert result.success is False
+        assert result.final_price == 5420.0

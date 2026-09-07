@@ -11,7 +11,7 @@
 - Deploy SA: `mirofish-forecast-deploy@total-now-339022.iam.gserviceaccount.com`
 
 ## What This App Does
-Natural language forecasting for ES/NQ/CL/GC futures. Users submit queries, get calibrated probabilistic forecasts via Monte Carlo simulation or LightGBM fast path.
+Natural language forecasting for ES futures (ES-only: NQ/CL/GC are disabled pending per-instrument models). Users submit queries, get calibrated probabilistic forecasts via Monte Carlo simulation or LightGBM fast path.
 
 ## Key Technologies
 - Flask + Vue 3 + Vite + Tailwind

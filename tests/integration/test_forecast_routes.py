@@ -2,9 +2,25 @@
 
 from unittest.mock import patch
 
+import pytest
+
+from mirofish_forecast.models.market import CrossAssetSnapshot
+
+_AGGREGATOR = "mirofish_forecast.api.forecast_routes.DataAggregator"
+
+
+@pytest.fixture
+def live_price():
+    """Make the /start pre-flight see a live ES price."""
+    with patch(_AGGREGATOR) as aggregator_cls:
+        aggregator_cls.return_value.get_cross_asset_snapshot.return_value = CrossAssetSnapshot(
+            es_price=5420.0
+        )
+        yield aggregator_cls
+
 
 class TestForecastStart:
-    def test_start_returns_forecast_id(self, client):
+    def test_start_returns_forecast_id(self, client, live_price):
         with patch("mirofish_forecast.api.forecast_routes.ForecastPipeline"):
             resp = client.post(
                 "/api/forecast/start",
@@ -25,7 +41,7 @@ class TestForecastStart:
         resp = client.post("/api/forecast/start", json={})
         assert resp.status_code == 400
 
-    def test_start_accepts_sim_preset(self, client):
+    def test_start_accepts_sim_preset(self, client, live_price):
         with patch("mirofish_forecast.api.forecast_routes.ForecastPipeline"):
             resp = client.post(
                 "/api/forecast/start",
@@ -46,7 +62,7 @@ class TestForecastStart:
         )
         assert resp.status_code == 400
 
-    def test_start_accepts_valid_sim_count(self, client):
+    def test_start_accepts_valid_sim_count(self, client, live_price):
         with patch("mirofish_forecast.api.forecast_routes.ForecastPipeline"):
             resp = client.post(
                 "/api/forecast/start",
@@ -54,6 +70,47 @@ class TestForecastStart:
                     "query": "ES next 2 hours",
                     "sim_count": 350,
                 },
+            )
+            assert resp.status_code == 202
+
+    def test_start_refuses_when_live_price_missing(self, client):
+        """Fail closed: no live price -> 503 with a distinct code, no session, no pipeline."""
+        with (
+            patch(_AGGREGATOR) as aggregator_cls,
+            patch("mirofish_forecast.api.forecast_routes.ForecastPipeline") as pipeline_cls,
+        ):
+            aggregator_cls.return_value.get_cross_asset_snapshot.return_value = CrossAssetSnapshot()
+            resp = client.post(
+                "/api/forecast/start",
+                json={"query": "Where will ES be in 2 hours?"},
+            )
+
+        assert resp.status_code == 503
+        assert resp.json["error"] == "market_data_unavailable"
+        assert "Live price unavailable for ES" in resp.json["message"]
+        assert "Forecast refused rather than estimated" in resp.json["message"]
+        pipeline_cls.assert_not_called()
+
+    @pytest.mark.parametrize("symbol", ["NQ", "CL", "GC", "SPY"])
+    def test_start_rejects_unsupported_instrument(self, client, symbol):
+        """ES-only: any other instrument is refused at the boundary, before any work starts."""
+        with patch("mirofish_forecast.api.forecast_routes.ForecastPipeline") as pipeline_cls:
+            resp = client.post(
+                "/api/forecast/start",
+                json={"query": f"Where will {symbol} be in 30 minutes?"},
+            )
+
+        assert resp.status_code == 400
+        assert resp.json["error"] == "unsupported_instrument"
+        assert "Only ES is currently supported" in resp.json["message"]
+        pipeline_cls.assert_not_called()
+
+    def test_start_accepts_query_without_instrument_token(self, client, live_price):
+        """No ticker in the query defaults to ES, which is still accepted."""
+        with patch("mirofish_forecast.api.forecast_routes.ForecastPipeline"):
+            resp = client.post(
+                "/api/forecast/start",
+                json={"query": "What's the range for the next 2 hours?"},
             )
             assert resp.status_code == 202
 

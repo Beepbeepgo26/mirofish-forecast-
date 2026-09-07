@@ -16,6 +16,7 @@ import numpy as np
 from mirofish_forecast.config import constants
 from mirofish_forecast.config.settings import Settings
 from mirofish_forecast.data.cache import CacheClient
+from mirofish_forecast.exceptions import require_price
 from mirofish_forecast.llm.client import LLMClient
 from mirofish_forecast.ml.feature_extractor import FeatureExtractor
 from mirofish_forecast.ml.model_store import ModelStore
@@ -146,7 +147,12 @@ class FastPathRunner:
 
         inference_ms = (time.time() - t0) * 1000
 
-        current_price = context.cross_asset.es_price or 5400.0
+        current_price = require_price(
+            context.cross_asset.es_price,
+            instrument,
+            "cross_asset.es_price",
+            "fast_path.run",
+        )
         median = round((p5_price + p95_price) / 2, 2)
 
         # Confidence label for synthesis prompt
