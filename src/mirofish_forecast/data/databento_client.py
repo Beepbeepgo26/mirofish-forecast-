@@ -7,6 +7,7 @@ Does NOT cover: DXY, TLT, VIX, SPY, QQQ (use yfinance for these).
 
 import json
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
@@ -36,28 +37,48 @@ class DatabentoClient:
         return self._enabled
 
     def is_live_writer_healthy(self) -> bool:
-        """Check if the Live Writer sidecar is running."""
-        heartbeat = self._cache.get(constants.DATABENTO_WRITER_HEARTBEAT)
-        return heartbeat is not None
+        """Check whether the live 1m bar feed is current.
+
+        Healthy iff the newest ES 1m bar in Redis is at most
+        DATABENTO_MAX_BAR_AGE_SECONDS old. The writer heartbeat key is deliberately
+        not consulted: a running writer that stores no bars is not healthy, and a
+        lapsed heartbeat while bars keep landing is not unhealthy. Reads unhealthy
+        during the CME maintenance halt and on weekends, which is the honest answer.
+        """
+        bars = self.get_recent_bars("ES", count=1)
+        if not bars:
+            logger.debug("Live writer unhealthy: no ES 1m bars in Redis")
+            return False
+        # A bar without a time is treated as infinitely old.
+        age = time.time() - float(bars[-1].get("time", 0))
+        healthy = age <= constants.DATABENTO_MAX_BAR_AGE_SECONDS
+        logger.debug(
+            f"Live writer {'healthy' if healthy else 'unhealthy'}: newest ES 1m bar is "
+            f"{age:.0f}s old (max {constants.DATABENTO_MAX_BAR_AGE_SECONDS}s)"
+        )
+        return healthy
 
     # -------------------------------------------------------------------
     # Real-time data (from Redis, written by Live Writer)
     # -------------------------------------------------------------------
 
     def get_latest_price(self, instrument: str = "ES") -> float | None:
-        """Get the most recent price from Redis.
+        """Get the most recent price: the close of the newest 1m bar in Redis.
 
-        The Live Writer updates this every minute when a new bar closes.
-        Returns None if Live Writer isn't running or instrument not found.
+        Read from the bar list, never from the 10-second-TTL price key, so the value
+        is available for as long as bars are. Returns None if the instrument has no
+        bars.
         """
-        key = f"{constants.DATABENTO_PRICE_KEY_PREFIX}:{instrument.upper()}"
-        raw = self._cache.get(key)
-        if raw is not None:
-            try:
-                return float(raw)
-            except (TypeError, ValueError):
-                pass
-        return None
+        bars = self.get_recent_bars(instrument, count=1)
+        if not bars:
+            return None
+        try:
+            return float(bars[-1]["close"])
+        except (KeyError, TypeError, ValueError):
+            logger.warning(
+                f"Newest {instrument.upper()} 1m bar has no usable close: {bars[-1]}"
+            )
+            return None
 
     def get_recent_bars(
         self,

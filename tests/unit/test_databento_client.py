@@ -3,11 +3,13 @@
 import json
 import logging
 import random
+import time
 from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
 
+from mirofish_forecast.config import constants
 from mirofish_forecast.data.databento_client import DatabentoClient
 
 
@@ -50,6 +52,15 @@ def _cache_with_bars(bars: list[dict], instrument: str = "ES") -> Mock:
     return cache
 
 
+def _bar_at(ts: int, close: float = 5100.5) -> dict:
+    """A 1m bar at an explicit epoch second."""
+    return {"time": ts, "open": close, "high": close + 1, "low": close - 1, "close": close}
+
+
+def _now() -> int:
+    return int(time.time())
+
+
 def _assert_aligned(bars: list[dict]) -> None:
     """The Phase 1 invariant: every output bar sits on a 5-minute boundary."""
     for bar in bars:
@@ -74,62 +85,125 @@ class TestIsEnabled:
 
 
 class TestIsLiveWriterHealthy:
-    def test_healthy_when_heartbeat_exists(self):
-        cache = Mock()
-        cache.get.return_value = "2026-04-17T20:00:00+00:00"
+    """Health is the recency of the newest ES 1m bar, read through the barlist."""
+
+    def test_reads_only_the_newest_es_bar(self):
+        cache = _cache_with_bars([_bar_at(_now() - 90), _bar_at(_now() - 30)])
         client = make_client(cache=cache)
         assert client.is_live_writer_healthy() is True
+        cache.zrevrange.assert_called_once_with("databento:barlist:ES", 0, 0)
 
-    def test_unhealthy_when_heartbeat_missing(self):
+    def test_age_just_inside_and_just_outside_the_limit(self):
+        limit = constants.DATABENTO_MAX_BAR_AGE_SECONDS
+        assert limit == 180
+        inside = make_client(cache=_cache_with_bars([_bar_at(_now() - (limit - 10))]))
+        outside = make_client(cache=_cache_with_bars([_bar_at(_now() - (limit + 10))]))
+        assert inside.is_live_writer_healthy() is True
+        assert outside.is_live_writer_healthy() is False
+
+    def test_unhealthy_on_redis_error(self):
         cache = Mock()
-        cache.get.return_value = None
+        cache.zrevrange.side_effect = ConnectionError("redis down")
         client = make_client(cache=cache)
         assert client.is_live_writer_healthy() is False
 
-    def test_heartbeat_key_is_correct_constant(self):
-        """Verify the heartbeat lookup uses the expected Redis key."""
-        from mirofish_forecast.config import constants
-
-        cache = Mock()
-        cache.get.return_value = "some-ts"
-        client = make_client(cache=cache)
-        client.is_live_writer_healthy()
-        cache.get.assert_called_once_with(constants.DATABENTO_WRITER_HEARTBEAT)
-
 
 class TestGetLatestPrice:
-    def test_returns_float_from_redis(self):
-        cache = Mock()
-        cache.get.return_value = "5100.50"
-        client = make_client(cache=cache)
-        assert client.get_latest_price("ES") == 5100.50
+    """Latest price is the close of the newest 1m bar, read through the barlist."""
 
-    def test_returns_none_on_cache_miss(self):
+    def test_returns_newest_bar_close_as_float(self):
+        cache = _cache_with_bars([_bar_at(T0, close=5001.0), _bar_at(T0 + 60, close=5002.25)])
+        client = make_client(cache=cache)
+        price = client.get_latest_price("ES")
+        assert price == 5002.25
+        assert isinstance(price, float)
+        cache.zrevrange.assert_called_once_with("databento:barlist:ES", 0, 0)
+
+    def test_returns_none_when_bar_key_expired(self):
+        """The barlist still names a key whose bar JSON has expired -> no price."""
         cache = Mock()
+        cache.zrevrange.return_value = ["databento:bar:ES:800"]
         cache.get.return_value = None
         client = make_client(cache=cache)
         assert client.get_latest_price("ES") is None
+        cache.zrevrange.assert_called_once()
 
-    def test_returns_none_on_invalid_value(self):
-        cache = Mock()
-        cache.get.return_value = "not-a-number"
+    def test_returns_none_on_invalid_close(self):
+        cache = _cache_with_bars([dict(_bar_at(T0), close="not-a-number")])
         client = make_client(cache=cache)
         assert client.get_latest_price("ES") is None
+        cache.zrevrange.assert_called_once()
 
-    def test_instrument_uppercased_in_key(self):
-        cache = Mock()
-        cache.get.return_value = "5100.00"
+    def test_instrument_uppercased_in_barlist_key(self):
+        cache = _cache_with_bars([_bar_at(T0)])
         client = make_client(cache=cache)
         client.get_latest_price("es")  # lowercase
-        cache.get.assert_called_with("databento:price:ES")
+        cache.zrevrange.assert_called_with("databento:barlist:ES", 0, 0)
 
-    def test_nq_price_uses_correct_key(self):
+    def test_returns_none_on_redis_error(self):
         cache = Mock()
-        cache.get.return_value = "19200.00"
+        cache.zrevrange.side_effect = ConnectionError("redis down")
         client = make_client(cache=cache)
-        price = client.get_latest_price("NQ")
-        assert price == 19200.00
-        cache.get.assert_called_with("databento:price:NQ")
+        assert client.get_latest_price("ES") is None
+        cache.zrevrange.assert_called_once()
+
+
+class TestReadPathHealthAndPrice:
+    """P0-2a Phase 2: health and latest price come from the bar list, not from the
+    writer heartbeat or the 10-second-TTL price key."""
+
+    def test_health_follows_newest_bar_age(self):
+        """Case 1: fresh bar (30s) -> True; stale bar (200s) -> False; no bars -> False."""
+        fresh = make_client(cache=_cache_with_bars([_bar_at(_now() - 30)]))
+        stale = make_client(cache=_cache_with_bars([_bar_at(_now() - 200)]))
+        empty = make_client(cache=_cache_with_bars([]))
+        assert fresh.is_live_writer_healthy() is True
+        assert stale.is_live_writer_healthy() is False
+        assert empty.is_live_writer_healthy() is False
+
+    def test_false_green_heartbeat_present_but_no_bars_is_unhealthy(self):
+        """Case 2: a live heartbeat with an empty barlist must not read as healthy."""
+        cache = _cache_with_bars([])
+        cache.get.side_effect = lambda key: (
+            "2026-09-10T20:00:00+00:00" if key == constants.DATABENTO_WRITER_HEARTBEAT else None
+        )
+        client = make_client(cache=cache)
+        assert client.is_live_writer_healthy() is False
+
+    def test_false_red_heartbeat_absent_but_fresh_bar_is_healthy(self):
+        """Case 3: a lapsed heartbeat with a fresh bar must not read as unhealthy."""
+        cache = _cache_with_bars([_bar_at(_now() - 30)])
+        assert cache.get(constants.DATABENTO_WRITER_HEARTBEAT) is None  # no heartbeat served
+        client = make_client(cache=cache)
+        assert client.is_live_writer_healthy() is True
+
+    def test_latest_price_is_newest_close_and_price_key_is_never_read(self):
+        """Case 4: newest bar close; None when empty; the 10s-TTL price key is never read."""
+        bars = [
+            _bar_at(T0, close=5001.0),
+            _bar_at(T0 + 60, close=5002.0),
+            _bar_at(T0 + 120, close=5003.5),
+        ]
+        cache = _cache_with_bars(bars)
+        assert make_client(cache=cache).get_latest_price("ES") == 5003.5
+
+        empty = _cache_with_bars([])
+        assert make_client(cache=empty).get_latest_price("ES") is None
+
+        price_key = f"{constants.DATABENTO_PRICE_KEY_PREFIX}:ES"
+        for mock_cache in (cache, empty):
+            keys_read = [call.args[0] for call in mock_cache.get.call_args_list]
+            assert price_key not in keys_read
+            assert not [k for k in keys_read if k.startswith(constants.DATABENTO_PRICE_KEY_PREFIX)]
+
+    def test_latest_price_for_nq_reads_the_nq_barlist(self):
+        """Case 5: instrument-parameterised; NQ comes from NQ's own barlist."""
+        cache = _cache_with_bars(
+            [_bar_at(T0, close=19200.0), _bar_at(T0 + 60, close=19210.25)], instrument="NQ"
+        )
+        client = make_client(cache=cache)
+        assert client.get_latest_price("NQ") == 19210.25
+        cache.zrevrange.assert_called_once_with("databento:barlist:NQ", 0, 0)
 
 
 class TestGetRecentBars:
