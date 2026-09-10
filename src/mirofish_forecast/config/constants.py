@@ -29,6 +29,10 @@ DATABENTO_BAR_KEY_PREFIX = "databento:bar"  # databento:bar:ES:{timestamp} → b
 DATABENTO_BARLIST_PREFIX = "databento:barlist"  # Sorted set of bar keys
 DATABENTO_WRITER_HEARTBEAT = "databento:writer:heartbeat"
 
+# 5-minute bucketing on the read path (DatabentoClient._resample_to_5min)
+DATABENTO_BAR_BUCKET_SECONDS = 300  # 5-minute buckets, aligned to wall-clock boundaries
+DATABENTO_BARS_PER_BUCKET = 5  # 1m bars per complete 5m bar
+
 # Cache TTLs
 CACHE_TTL_DATABENTO_PRICE = 10  # Latest price: 10 seconds
 CACHE_TTL_SESSION_LEVELS = 60  # Session levels: 60 seconds

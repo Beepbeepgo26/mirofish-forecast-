@@ -1,6 +1,8 @@
 """Comprehensive tests for DatabentoClient."""
 
 import json
+import logging
+import random
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -13,6 +15,45 @@ def make_client(api_key: str = "db-test", cache: Mock | None = None) -> Databent
     settings = Mock()
     settings.databento_api_key = api_key
     return DatabentoClient(settings, cache or Mock())
+
+
+# A wall-clock 5-minute boundary (1_700_000_100 % 300 == 0) for the bucketing fixtures.
+T0 = 1_700_000_100
+BUCKET = 300
+assert T0 % BUCKET == 0
+
+
+def _bar_1m(offset_minutes: int, volume: int = 10) -> dict:
+    """A 1m bar at T0 + offset minutes, with OHLC derived from the offset."""
+    price = 100.0 + offset_minutes
+    return {
+        "time": T0 + offset_minutes * 60,
+        "open": price,
+        "high": price + 1,
+        "low": price - 1,
+        "close": price + 0.5,
+        "volume": volume,
+    }
+
+
+def _bars_1m(offsets) -> list[dict]:
+    return [_bar_1m(offset) for offset in offsets]
+
+
+def _cache_with_bars(bars: list[dict], instrument: str = "ES") -> Mock:
+    """Cache mock serving ``bars`` through the barlist sorted set, newest first."""
+    keyed = {f"databento:bar:{instrument}:{bar['time']}": json.dumps(bar) for bar in bars}
+    newest_first = sorted(keyed, key=lambda key: int(key.rsplit(":", 1)[1]), reverse=True)
+    cache = Mock()
+    cache.zrevrange.side_effect = lambda key, start, end: newest_first[start : end + 1]
+    cache.get.side_effect = lambda key: keyed.get(key)
+    return cache
+
+
+def _assert_aligned(bars: list[dict]) -> None:
+    """The Phase 1 invariant: every output bar sits on a 5-minute boundary."""
+    for bar in bars:
+        assert bar["time"] % BUCKET == 0, bar
 
 
 class TestIsEnabled:
@@ -160,43 +201,48 @@ class TestResampleTo5Min:
     def test_exact_5_bars_makes_1_candle(self):
         client = make_client()
         bars_1m = [
-            {"time": 60, "open": 10, "high": 15, "low": 5, "close": 12, "volume": 100},
-            {"time": 120, "open": 12, "high": 20, "low": 10, "close": 18, "volume": 50},
-            {"time": 180, "open": 18, "high": 18, "low": 16, "close": 17, "volume": 10},
-            {"time": 240, "open": 17, "high": 22, "low": 17, "close": 21, "volume": 40},
-            {"time": 300, "open": 21, "high": 21, "low": 19, "close": 20, "volume": 100},
+            {"time": T0, "open": 10, "high": 15, "low": 5, "close": 12, "volume": 100},
+            {"time": T0 + 60, "open": 12, "high": 20, "low": 10, "close": 18, "volume": 50},
+            {"time": T0 + 120, "open": 18, "high": 18, "low": 16, "close": 17, "volume": 10},
+            {"time": T0 + 180, "open": 17, "high": 22, "low": 17, "close": 21, "volume": 40},
+            {"time": T0 + 240, "open": 21, "high": 21, "low": 19, "close": 20, "volume": 100},
         ]
         result = client._resample_to_5min(bars_1m)
         assert len(result) == 1
         bar = result[0]
-        assert bar["time"] == 60  # start of bucket
+        assert bar["time"] == T0  # bucket start, on the 5-minute boundary
         assert bar["open"] == 10  # first open
         assert bar["high"] == 22  # highest high
         assert bar["low"] == 5  # lowest low
         assert bar["close"] == 20  # last close
         assert bar["volume"] == 300  # sum
+        assert bar["complete"] is True
+        assert bar["bar_count"] == 5
+        _assert_aligned(result)
 
     def test_10_bars_makes_2_candles(self):
         client = make_client()
-        bars = [
-            {"time": i * 60, "open": 100, "high": 101, "low": 99, "close": 100, "volume": 10}
-            for i in range(1, 11)
-        ]
-        result = client._resample_to_5min(bars)
-        assert len(result) == 2
+        result = client._resample_to_5min(_bars_1m(range(10)))
+        assert [bar["time"] for bar in result] == [T0, T0 + 300]
+        assert all(bar["complete"] for bar in result)
+        _assert_aligned(result)
 
-    def test_partial_bucket_becomes_incomplete_bar(self):
-        """3 bars (incomplete bucket) should be returned as-is."""
+    def test_partial_bucket_is_flagged_incomplete(self):
+        """3 bars (incomplete bucket) are still aggregated, but flagged as incomplete."""
         client = make_client()
         bars = [
-            {"time": 60, "open": 10, "high": 15, "low": 5, "close": 12, "volume": 100},
-            {"time": 120, "open": 12, "high": 16, "low": 10, "close": 14, "volume": 50},
-            {"time": 180, "open": 14, "high": 17, "low": 13, "close": 15, "volume": 30},
+            {"time": T0, "open": 10, "high": 15, "low": 5, "close": 12, "volume": 100},
+            {"time": T0 + 60, "open": 12, "high": 16, "low": 10, "close": 14, "volume": 50},
+            {"time": T0 + 120, "open": 14, "high": 17, "low": 13, "close": 15, "volume": 30},
         ]
         result = client._resample_to_5min(bars)
         assert len(result) == 1
+        assert result[0]["time"] == T0
         assert result[0]["open"] == 10
         assert result[0]["close"] == 15
+        assert result[0]["complete"] is False
+        assert result[0]["bar_count"] == 3
+        _assert_aligned(result)
 
     def test_empty_input_returns_empty(self):
         client = make_client()
@@ -209,6 +255,147 @@ class TestResampleTo5Min:
         ]
         result = client._resample_to_5min(bars)
         assert result[0]["volume"] == 0
+
+
+class TestTimestampAlignedBuckets:
+    """P0-2a Phase 1: 5m buckets are keyed by wall-clock time, not by arrival order."""
+
+    LOGGER = "mirofish_forecast.data.databento_client"
+
+    def test_window_cut_first_bucket_is_dropped_by_default(self):
+        """Case 1: nine bars at offsets 1..9 -> a 4-bar (incomplete) and a 5-bar (complete)
+        bucket; the default call returns only the complete one."""
+        bars = _bars_1m(range(1, 10))
+        cache = _cache_with_bars(bars)
+        client = make_client(cache=cache)
+
+        resampled = client._resample_to_5min(bars)
+        assert [(b["time"], b["bar_count"], b["complete"]) for b in resampled] == [
+            (T0, 4, False),
+            (T0 + 300, 5, True),
+        ]
+
+        result = client.get_5min_bars("ES", count=10)
+        assert [b["time"] for b in result] == [T0 + 300]
+        assert result[0]["complete"] is True
+        _assert_aligned(result)
+        # Fetch margin: count * 5 + 10 raw 1m bars are requested from the sorted set.
+        cache.zrevrange.assert_called_once_with("databento:barlist:ES", 0, 59)
+
+    def test_interior_gap_is_dropped_with_warning(self, caplog):
+        """Case 2: ten bars over minutes 0..10 with minute 7 missing -> the middle bucket is
+        incomplete and interior (WARNING); the forming last bucket is window-edge (DEBUG)."""
+        bars = _bars_1m(offset for offset in range(11) if offset != 7)
+        assert len(bars) == 10
+        client = make_client(cache=_cache_with_bars(bars))
+
+        with caplog.at_level(logging.DEBUG, logger=self.LOGGER):
+            result = client.get_5min_bars("ES", count=10)
+
+        assert [b["time"] for b in result] == [T0]
+        _assert_aligned(result)
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) == 1
+        assert str(T0 + 300) in warnings[0].getMessage()
+        assert "4/5" in warnings[0].getMessage()
+        debugs = [r for r in caplog.records if r.levelno == logging.DEBUG]
+        assert len(debugs) == 1
+        assert str(T0 + 600) in debugs[0].getMessage()
+
+    def test_trailing_partial_bucket_debug_and_include_incomplete(self, caplog):
+        """Case 3: seven bars -> the trailing 2-bar bucket is dropped at DEBUG by default and
+        returned flagged incomplete with include_incomplete=True."""
+        bars = _bars_1m(range(7))
+        client = make_client(cache=_cache_with_bars(bars))
+
+        with caplog.at_level(logging.DEBUG, logger=self.LOGGER):
+            default = client.get_5min_bars("ES", count=10)
+
+        assert [b["time"] for b in default] == [T0]
+        assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+        debugs = [r for r in caplog.records if r.levelno == logging.DEBUG]
+        assert len(debugs) == 1
+        assert str(T0 + 300) in debugs[0].getMessage()
+
+        everything = client.get_5min_bars("ES", count=10, include_incomplete=True)
+        assert [b["time"] for b in everything] == [T0, T0 + 300]
+        assert everything[0]["complete"] is True
+        assert everything[1]["complete"] is False
+        assert everything[1]["bar_count"] == 2
+        assert everything[1]["open"] == bars[5]["open"]
+        assert everything[1]["close"] == bars[6]["close"]
+        _assert_aligned(default)
+        _assert_aligned(everything)
+
+    def test_arrival_order_does_not_change_output(self):
+        """Case 4: shuffled and reversed fixtures bucketize identically to the sorted one."""
+        bars = _bars_1m([0, 1, 2, 3, 4, 5, 6, 8, 9, 12])
+        client = make_client()
+        expected = client._resample_to_5min(bars)
+
+        shuffled = list(bars)
+        random.Random(42).shuffle(shuffled)
+        assert shuffled != bars
+        assert client._resample_to_5min(shuffled) == expected
+        assert client._resample_to_5min(list(reversed(bars))) == expected
+        _assert_aligned(expected)
+
+    def test_window_start_does_not_move_bucket_times(self):
+        """Case 5 (regression for the arrival-order bug): the same 12 bars seen through
+        windows starting at different offsets yield buckets with the SAME time values."""
+        bars = _bars_1m(range(12))  # buckets T0 (0-4), T0+300 (5-9), T0+600 (10-11)
+        client = make_client()
+
+        by_window_start = {start: client._resample_to_5min(bars[start:]) for start in range(5)}
+        for start, result in by_window_start.items():
+            _assert_aligned(result)
+            assert {b["time"] for b in result} <= {T0, T0 + 300, T0 + 600}, start
+            # The bucket fully inside every window is identical in every window.
+            middle = next(b for b in result if b["time"] == T0 + 300)
+            assert middle == by_window_start[0][1]
+            assert middle["complete"] is True
+        # The window-cut first bucket keeps its aligned time; only its bar_count shrinks.
+        assert [by_window_start[s][0]["time"] for s in range(5)] == [T0] * 5
+        assert [by_window_start[s][0]["bar_count"] for s in range(5)] == [5, 4, 3, 2, 1]
+
+    def test_duplicate_timestamp_last_wins(self):
+        """Case 6: a duplicated 1m bar is replaced by the copy seen last; no crash, and the
+        bucket is still complete with bar_count 5."""
+        bars = _bars_1m(range(5))
+        replacement = dict(bars[2], high=1000.0, volume=7)
+        client = make_client()
+
+        result = client._resample_to_5min(bars + [replacement])
+        assert len(result) == 1
+        assert result[0]["complete"] is True
+        assert result[0]["bar_count"] == 5
+        assert result[0]["high"] == 1000.0
+        assert result[0]["volume"] == 4 * 10 + 7
+        _assert_aligned(result)
+
+        # Seen first instead of last, the duplicate loses to the original.
+        original_wins = client._resample_to_5min([replacement] + bars)
+        assert original_wins[0]["high"] == bars[4]["high"]
+        assert original_wins[0]["volume"] == 5 * 10
+
+    def test_every_output_time_is_on_a_5_minute_boundary(self):
+        """Case 7: the invariant holds for a gappy, duplicated, shuffled, window-cut fixture
+        through the resampler and through get_5min_bars, with and without incomplete bars."""
+        offsets = [offset for offset in range(1, 40) if offset % 7 != 0]
+        bars = _bars_1m(offsets) + [_bar_1m(3)]
+        random.Random(7).shuffle(bars)
+        client = make_client(cache=_cache_with_bars(bars))
+
+        resampled = client._resample_to_5min(bars)
+        default = client.get_5min_bars("ES", count=4)
+        everything = client.get_5min_bars("ES", count=4, include_incomplete=True)
+
+        for result in (resampled, default, everything):
+            assert result
+            _assert_aligned(result)
+        assert all(b["complete"] for b in default)
+        assert len(default) <= 4
+        assert len(everything) == 4
 
 
 class TestGetTrainingData:
