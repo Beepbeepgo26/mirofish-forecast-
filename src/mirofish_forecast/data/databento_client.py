@@ -7,6 +7,7 @@ Does NOT cover: DXY, TLT, VIX, SPY, QQQ (use yfinance for these).
 
 import json
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
@@ -36,28 +37,56 @@ class DatabentoClient:
         return self._enabled
 
     def is_live_writer_healthy(self) -> bool:
-        """Check if the Live Writer sidecar is running."""
-        heartbeat = self._cache.get(constants.DATABENTO_WRITER_HEARTBEAT)
-        return heartbeat is not None
+        """Check whether the live 1m bar feed is current.
+
+        Healthy iff the newest ES 1m bar in Redis is at most
+        DATABENTO_MAX_BAR_AGE_SECONDS old. The writer heartbeat key is deliberately
+        not consulted: a running writer that stores no bars is not healthy, and a
+        lapsed heartbeat while bars keep landing is not unhealthy. Reads unhealthy
+        during the CME maintenance halt and on weekends, which is the honest answer.
+        """
+        bars = self.get_recent_bars("ES", count=1)
+        if not bars:
+            logger.debug("Live writer unhealthy: no ES 1m bars in Redis")
+            return False
+        # A bar without a time is treated as infinitely old.
+        age = time.time() - float(bars[-1].get("time", 0))
+        healthy = age <= constants.DATABENTO_MAX_BAR_AGE_SECONDS
+        logger.debug(
+            f"Live writer {'healthy' if healthy else 'unhealthy'}: newest ES 1m bar is "
+            f"{age:.0f}s old (max {constants.DATABENTO_MAX_BAR_AGE_SECONDS}s)"
+        )
+        return healthy
 
     # -------------------------------------------------------------------
     # Real-time data (from Redis, written by Live Writer)
     # -------------------------------------------------------------------
 
     def get_latest_price(self, instrument: str = "ES") -> float | None:
-        """Get the most recent price from Redis.
+        """Get the most recent price: the close of the newest 1m bar in Redis.
 
-        The Live Writer updates this every minute when a new bar closes.
-        Returns None if Live Writer isn't running or instrument not found.
+        Read from the bar list, never from the 10-second-TTL price key, so the value
+        is available for as long as bars are. Returns None if the instrument has no
+        bars, or if its newest bar is older than DATABENTO_MAX_BAR_AGE_SECONDS: the
+        health check gates on ES only, so a stalled NQ/CL/GC feed must not hand out
+        a stale close as if it were live.
         """
-        key = f"{constants.DATABENTO_PRICE_KEY_PREFIX}:{instrument.upper()}"
-        raw = self._cache.get(key)
-        if raw is not None:
-            try:
-                return float(raw)
-            except (TypeError, ValueError):
-                pass
-        return None
+        bars = self.get_recent_bars(instrument, count=1)
+        if not bars:
+            return None
+        newest = bars[-1]
+        age = time.time() - float(newest.get("time", 0))
+        if age > constants.DATABENTO_MAX_BAR_AGE_SECONDS:
+            logger.debug(
+                f"No live {instrument.upper()} price: newest 1m bar is {age:.0f}s old "
+                f"(max {constants.DATABENTO_MAX_BAR_AGE_SECONDS}s)"
+            )
+            return None
+        try:
+            return float(newest["close"])
+        except (KeyError, TypeError, ValueError):
+            logger.warning(f"Newest {instrument.upper()} 1m bar has no usable close: {newest}")
+            return None
 
     def get_recent_bars(
         self,
@@ -107,22 +136,55 @@ class DatabentoClient:
         self,
         instrument: str = "ES",
         count: int = 78,
+        include_incomplete: bool = False,
     ) -> list[dict]:
-        """Get 5-minute bars by resampling 1-minute bars from Redis.
+        """Get wall-clock-aligned 5-minute bars by resampling 1-minute bars from Redis.
 
         Args:
             instrument: "ES", "NQ", "CL", "GC"
             count: Number of 5-min bars to return
+            include_incomplete: Also return partial buckets, flagged ``complete=False``.
+                By default only complete buckets are returned, so the result can be
+                shorter than ``count`` and never includes the currently forming bar.
 
         Returns:
-            List of resampled 5-min bar dicts
+            List of resampled 5-min bar dicts, oldest first, every ``time`` on a
+            5-minute boundary
         """
-        # Need 5x the 1-min bars
-        raw_bars = self.get_recent_bars(instrument, count=count * 5 + 5)
+        # Fetch margin: the oldest bucket in a zrevrange window is usually cut by
+        # the window edge, so over-fetch two buckets' worth of 1-min bars.
+        raw_bars = self.get_recent_bars(
+            instrument, count=count * constants.DATABENTO_BARS_PER_BUCKET + 10
+        )
         if not raw_bars:
             return []
 
-        return self._resample_to_5min(raw_bars)[-count:]
+        bars_5m = self._resample_to_5min(raw_bars)
+        if include_incomplete:
+            return bars_5m[-count:]
+
+        newest = len(bars_5m) - 1
+        complete_bars: list[dict] = []
+        for index, bar in enumerate(bars_5m):
+            if bar["complete"]:
+                complete_bars.append(bar)
+            elif index in (0, newest):
+                # Window-edge artefact: the oldest bucket was cut by the fetch window,
+                # the newest is the currently forming bar. Expected, not a data problem.
+                logger.debug(
+                    f"Dropping incomplete 5m bar {bar['time']} for {instrument} "
+                    f"({bar['bar_count']}/{constants.DATABENTO_BARS_PER_BUCKET} 1m bars, "
+                    "window edge)"
+                )
+            else:
+                # Interior gap: 1m bars missing mid-history. A writer fault, or a
+                # no-trade minute (Databento prints no record for those).
+                logger.warning(
+                    f"Dropping incomplete 5m bar {bar['time']} for {instrument}: "
+                    f"{bar['bar_count']}/{constants.DATABENTO_BARS_PER_BUCKET} 1m bars "
+                    "(interior gap)"
+                )
+        return complete_bars[-count:]
 
     # -------------------------------------------------------------------
     # Historical data (from Databento Historical API, >24h old)
@@ -200,35 +262,44 @@ class DatabentoClient:
     # -------------------------------------------------------------------
 
     def _resample_to_5min(self, bars_1m: list[dict]) -> list[dict]:
-        """Resample 1-minute bars to 5-minute bars."""
+        """Resample 1-minute bars into wall-clock-aligned 5-minute bars.
+
+        Bars are bucketed by ``time // DATABENTO_BAR_BUCKET_SECONDS`` rather than by
+        arrival order, so every output ``time`` is a 5-minute boundary no matter where
+        the fetch window happened to start. Each output bar also carries ``complete``
+        (exactly DATABENTO_BARS_PER_BUCKET bars at offsets 0, 60, ..., 240 from the
+        bucket start) and ``bar_count``.
+        """
         if not bars_1m:
             return []
 
-        result: list[dict] = []
-        bucket: list[dict] = []
+        bucket_seconds = constants.DATABENTO_BAR_BUCKET_SECONDS
+        bars_per_bucket = constants.DATABENTO_BARS_PER_BUCKET
+        expected_offsets = set(range(0, bucket_seconds, bucket_seconds // bars_per_bucket))
 
+        # bucket_start -> {bar time -> bar}; a duplicated time keeps the last one seen.
+        buckets: dict[int, dict[int, dict]] = {}
         for bar in bars_1m:
-            bucket.append(bar)
-            if len(bucket) == 5:
-                result.append({
-                    "time": bucket[0]["time"],
-                    "open": bucket[0]["open"],
-                    "high": max(b["high"] for b in bucket),
-                    "low": min(b["low"] for b in bucket),
-                    "close": bucket[-1]["close"],
-                    "volume": sum(b.get("volume", 0) for b in bucket),
-                })
-                bucket = []
+            bar_time = int(bar["time"])
+            bucket_start = (bar_time // bucket_seconds) * bucket_seconds
+            buckets.setdefault(bucket_start, {})[bar_time] = bar
 
-        # Don't discard the remainder — it's the current incomplete bar
-        if bucket:
+        result: list[dict] = []
+        for bucket_start in sorted(buckets):
+            by_time = buckets[bucket_start]
+            ordered = [by_time[bar_time] for bar_time in sorted(by_time)]
+            # Times are unique within a bucket, so matching the offset set also
+            # pins the count to exactly bars_per_bucket.
+            offsets = {bar_time - bucket_start for bar_time in by_time}
             result.append({
-                "time": bucket[0]["time"],
-                "open": bucket[0]["open"],
-                "high": max(b["high"] for b in bucket),
-                "low": min(b["low"] for b in bucket),
-                "close": bucket[-1]["close"],
-                "volume": sum(b.get("volume", 0) for b in bucket),
+                "time": bucket_start,
+                "open": ordered[0]["open"],
+                "high": max(b["high"] for b in ordered),
+                "low": min(b["low"] for b in ordered),
+                "close": ordered[-1]["close"],
+                "volume": sum(b.get("volume", 0) for b in ordered),
+                "complete": offsets == expected_offsets,
+                "bar_count": len(ordered),
             })
 
         return result
