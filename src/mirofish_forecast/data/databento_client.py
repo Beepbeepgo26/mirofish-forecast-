@@ -67,17 +67,25 @@ class DatabentoClient:
 
         Read from the bar list, never from the 10-second-TTL price key, so the value
         is available for as long as bars are. Returns None if the instrument has no
-        bars.
+        bars, or if its newest bar is older than DATABENTO_MAX_BAR_AGE_SECONDS: the
+        health check gates on ES only, so a stalled NQ/CL/GC feed must not hand out
+        a stale close as if it were live.
         """
         bars = self.get_recent_bars(instrument, count=1)
         if not bars:
             return None
-        try:
-            return float(bars[-1]["close"])
-        except (KeyError, TypeError, ValueError):
-            logger.warning(
-                f"Newest {instrument.upper()} 1m bar has no usable close: {bars[-1]}"
+        newest = bars[-1]
+        age = time.time() - float(newest.get("time", 0))
+        if age > constants.DATABENTO_MAX_BAR_AGE_SECONDS:
+            logger.debug(
+                f"No live {instrument.upper()} price: newest 1m bar is {age:.0f}s old "
+                f"(max {constants.DATABENTO_MAX_BAR_AGE_SECONDS}s)"
             )
+            return None
+        try:
+            return float(newest["close"])
+        except (KeyError, TypeError, ValueError):
+            logger.warning(f"Newest {instrument.upper()} 1m bar has no usable close: {newest}")
             return None
 
     def get_recent_bars(

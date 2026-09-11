@@ -112,7 +112,10 @@ class TestGetLatestPrice:
     """Latest price is the close of the newest 1m bar, read through the barlist."""
 
     def test_returns_newest_bar_close_as_float(self):
-        cache = _cache_with_bars([_bar_at(T0, close=5001.0), _bar_at(T0 + 60, close=5002.25)])
+        now = _now()
+        cache = _cache_with_bars(
+            [_bar_at(now - 90, close=5001.0), _bar_at(now - 30, close=5002.25)]
+        )
         client = make_client(cache=cache)
         price = client.get_latest_price("ES")
         assert price == 5002.25
@@ -129,13 +132,13 @@ class TestGetLatestPrice:
         cache.zrevrange.assert_called_once()
 
     def test_returns_none_on_invalid_close(self):
-        cache = _cache_with_bars([dict(_bar_at(T0), close="not-a-number")])
+        cache = _cache_with_bars([dict(_bar_at(_now() - 30), close="not-a-number")])
         client = make_client(cache=cache)
         assert client.get_latest_price("ES") is None
         cache.zrevrange.assert_called_once()
 
     def test_instrument_uppercased_in_barlist_key(self):
-        cache = _cache_with_bars([_bar_at(T0)])
+        cache = _cache_with_bars([_bar_at(_now() - 30)])
         client = make_client(cache=cache)
         client.get_latest_price("es")  # lowercase
         cache.zrevrange.assert_called_with("databento:barlist:ES", 0, 0)
@@ -179,10 +182,11 @@ class TestReadPathHealthAndPrice:
 
     def test_latest_price_is_newest_close_and_price_key_is_never_read(self):
         """Case 4: newest bar close; None when empty; the 10s-TTL price key is never read."""
+        now = _now()
         bars = [
-            _bar_at(T0, close=5001.0),
-            _bar_at(T0 + 60, close=5002.0),
-            _bar_at(T0 + 120, close=5003.5),
+            _bar_at(now - 150, close=5001.0),
+            _bar_at(now - 90, close=5002.0),
+            _bar_at(now - 30, close=5003.5),
         ]
         cache = _cache_with_bars(bars)
         assert make_client(cache=cache).get_latest_price("ES") == 5003.5
@@ -198,12 +202,26 @@ class TestReadPathHealthAndPrice:
 
     def test_latest_price_for_nq_reads_the_nq_barlist(self):
         """Case 5: instrument-parameterised; NQ comes from NQ's own barlist."""
+        now = _now()
         cache = _cache_with_bars(
-            [_bar_at(T0, close=19200.0), _bar_at(T0 + 60, close=19210.25)], instrument="NQ"
+            [_bar_at(now - 90, close=19200.0), _bar_at(now - 30, close=19210.25)], instrument="NQ"
         )
         client = make_client(cache=cache)
         assert client.get_latest_price("NQ") == 19210.25
         cache.zrevrange.assert_called_once_with("databento:barlist:NQ", 0, 0)
+
+    def test_latest_price_is_none_when_newest_bar_is_stale(self, caplog):
+        """Refinement: a newest bar older than DATABENTO_MAX_BAR_AGE_SECONDS yields None, not
+        a stale close. get_latest_price runs for NQ/CL/GC with no ES-only health gate."""
+        cache = _cache_with_bars([_bar_at(_now() - 200, close=19200.0)], instrument="NQ")
+        client = make_client(cache=cache)
+
+        with caplog.at_level(logging.DEBUG, logger="mirofish_forecast.data.databento_client"):
+            assert client.get_latest_price("NQ") is None
+
+        debugs = [r.getMessage() for r in caplog.records if r.levelno == logging.DEBUG]
+        assert any("No live NQ price" in msg and "old" in msg for msg in debugs)
+        assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
 
 class TestGetRecentBars:
